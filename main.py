@@ -8,7 +8,7 @@ from telegram.ext import (
 )
 
 # === CONFIG ===
-TOKEN = "7334376683:AAEhwjysajszFcaMjLdyNgsy4pw1_HLcbSs"
+TOKEN = "7334376683:AAEgYY-8bUiDLddIBFBogAi1-VJKfTmuQj0"
 DATA_FILE = "data.json"
 
 # === BASE DE DONNÉES ===
