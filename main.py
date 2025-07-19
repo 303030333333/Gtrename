@@ -24,84 +24,136 @@ def save_data(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
-# === FONCTION POUR GARDER L'AUTO-SUPPRESSION ACTIVE ===
+# === AUTO-SUPPRESSION PERMANENTE ===
 async def keep_auto_delete_alive():
     while True:
         data = load_data()
         for chat_id in data["groups"]:
-            data["groups"][chat_id]["enabled"] = True  # ✅ Garde l'auto-suppression active
+            data["groups"][chat_id]["enabled"] = True
         save_data(data)
-        print("[AUTO-SUPPRESSION] Vérification et réactivation automatique.")
-        await asyncio.sleep(1800)  # ✅ Vérifie toutes les 30 min
+        print("[AUTO] Vérif auto-suppression.")
+        await asyncio.sleep(1800)
 
-# === START ===
+# === COMMANDES PUBLICS ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     data = load_data()
     if user_id not in data["users"]:
         data["users"].append(user_id)
         save_data(data)
-
-    keyboard = [[InlineKeyboardButton("Rejoindre le canal", url="https://t.me/sineur_x_bot")]]
-    text = (
-        "Bienvenue !\nCe bot supprime automatiquement les messages dans les groupes et canaux.\n"
-        "Commandes disponibles pour tous :\n"
-        "/on - Activer l’auto-suppression\n"
-        "/off - Désactiver l’auto-suppression\n"
-        "/setdelay [secondes] - Définir le délai de suppression"
+    keyboard = [[InlineKeyboardButton("🔗 Canal", url="https://t.me/sineur_x_bot")]]
+    await update.message.reply_text(
+        "Bienvenue ! Ce bot supprime les messages automatiquement dans les canaux.\n\n"
+        "/on - Activer\n/off - Désactiver\n/setdelay 10 - Délai en secondes",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
-    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-# === COMMANDES PUBLIQUES ===
 async def cmd_on(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
     data = load_data()
-    if chat_id not in data["groups"]:
-        data["groups"][chat_id] = {"enabled": True, "delay": 3}
-    else:
-        data["groups"][chat_id]["enabled"] = True
+    data["groups"].setdefault(chat_id, {"enabled": True, "delay": 3})["enabled"] = True
     save_data(data)
-    await update.message.reply_text("Auto-suppression activée.")
+    await update.message.reply_text("✅ Auto-suppression activée.")
 
 async def cmd_off(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
     data = load_data()
     data["groups"].setdefault(chat_id, {})["enabled"] = False
     save_data(data)
-    await update.message.reply_text("Auto-suppression désactivée.")
+    await update.message.reply_text("❌ Auto-suppression désactivée.")
 
 async def cmd_setdelay(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
-    data = load_data()
     try:
         delay = int(context.args[0])
+        data = load_data()
         data["groups"].setdefault(chat_id, {})["delay"] = delay
         save_data(data)
-        await update.message.reply_text(f"Délai défini à {delay} sec.")
+        await update.message.reply_text(f"⏱ Délai défini à {delay} sec.")
     except:
-        await update.message.reply_text("Usage : /setdelay 10")
+        await update.message.reply_text("Utilisation : /setdelay 10")
 
-# === AUTO DELETE CANAL ===
+# === ADMIN ===
+async def add_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    data = load_data()
+    if user_id in data["admins"]:
+        try:
+            new_id = int(context.args[0])
+            if new_id not in data["admins"]:
+                data["admins"].append(new_id)
+                save_data(data)
+                await update.message.reply_text(f"✅ Admin ajouté : {new_id}")
+        except:
+            await update.message.reply_text("Utilisation : /addadmin <user_id>")
+
+async def ban_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    data = load_data()
+    if user_id in data["admins"]:
+        try:
+            ban_id = int(context.args[0])
+            if ban_id in data["admins"]:
+                data["admins"].remove(ban_id)
+                save_data(data)
+                await update.message.reply_text(f"❌ Admin retiré : {ban_id}")
+        except:
+            await update.message.reply_text("Utilisation : /banadmin <user_id>")
+
+async def list_admins(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    data = load_data()
+    text = "👑 Liste des admins :\n" + "\n".join([str(a) for a in data["admins"]])
+    await update.message.reply_text(text)
+
+async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    data = load_data()
+    if user_id not in data["admins"]:
+        return
+    msg = " ".join(context.args)
+    for uid in data["users"]:
+        try:
+            await context.bot.send_message(chat_id=uid, text=msg)
+        except:
+            pass
+    await update.message.reply_text("📣 Message envoyé en privé.")
+
+async def broadcast_pub(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    data = load_data()
+    if user_id not in data["admins"]:
+        return
+    msg = " ".join(context.args)
+    for gid in data["groups"]:
+        try:
+            await context.bot.send_message(chat_id=gid, text=msg)
+        except:
+            pass
+    await update.message.reply_text("📢 Message envoyé dans les canaux/groupes.")
+
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    data = load_data()
+    await update.message.reply_text(
+        f"📊 Stats :\n👥 Utilisateurs : {len(data['users'])}\n📣 Canaux/groupes : {len(data['groups'])}"
+    )
+
+# === SUPPRESSION DANS LES CANAUX ===
 async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.channel_post.chat_id)
-    text = update.channel_post.text or ""
+    message_id = update.channel_post.message_id
     data = load_data()
 
-    print(f"[CANAL] Message détecté dans canal {chat_id} : {text[:30]}...")
-
-    # Enregistrement du canal automatiquement
     if chat_id not in data["groups"]:
         data["groups"][chat_id] = {"enabled": False, "delay": 3}
         save_data(data)
 
-    conf = data["groups"].get(chat_id, {})
-    if conf.get("enabled", False):
-        delay = conf.get("delay", 3)
-        print(f"[CANAL] Suppression programmée dans {delay}s")
+    config = data["groups"].get(chat_id, {})
+    if config.get("enabled", False):
+        delay = config.get("delay", 3)
+        print(f"[CANAL] Suppression dans {delay}s")
         await asyncio.sleep(delay)
-        
         try:
-            await context.bot.delete_message(chat_id=chat_id, message_id=update.channel_post.message_id)
+            await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
             print("[CANAL] Message supprimé.")
         except Exception as e:
             print("[CANAL] Erreur suppression :", e)
@@ -109,6 +161,7 @@ async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE
 # === MAIN ===
 app = ApplicationBuilder().token(TOKEN).build()
 
+# Handlers
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("on", cmd_on))
 app.add_handler(CommandHandler("off", cmd_off))
@@ -121,17 +174,16 @@ app.add_handler(CommandHandler("broadcast", broadcast))
 app.add_handler(CommandHandler("broadcast_pub", broadcast_pub))
 app.add_handler(CommandHandler("stats", stats))
 
-app.add_handler(MessageHandler(filters.ChatType.GROUPS & ~filters.COMMAND, auto_delete))
 app.add_handler(MessageHandler(filters.UpdateType.CHANNEL_POST, handle_channel_post))
 
-print("Bot lancé...")
+print("✅ Bot lancé...")
 async def main():
-    asyncio.create_task(keep_auto_delete_alive())  # ✅ Active la réactivation toutes les 30 min
+    asyncio.create_task(keep_auto_delete_alive())
     await app.run_polling(drop_pending_updates=True, allowed_updates=["message", "channel_post"])
 
 try:
     asyncio.run(main())
 except Exception as e:
-    print(f"Erreur: {e}")
+    print(f"❌ Erreur: {e}")
 finally:
     print("Bot arrêté.")
