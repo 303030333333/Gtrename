@@ -6,6 +6,7 @@ from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
     ContextTypes, filters
 )
+import nest_asyncio
 
 # === CONFIG ===
 TOKEN = "7334376683:AAEgYY-8bUiDLddIBFBogAi1-VJKfTmuQj0"
@@ -158,7 +159,7 @@ async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE
         except Exception as e:
             print("[CANAL] Erreur suppression :", e)
 
-# === MAIN ===
+# === LANCEMENT DU BOT ===
 app = ApplicationBuilder().token(TOKEN).build()
 
 # Handlers
@@ -166,24 +167,19 @@ app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("on", cmd_on))
 app.add_handler(CommandHandler("off", cmd_off))
 app.add_handler(CommandHandler("setdelay", cmd_setdelay))
-
 app.add_handler(CommandHandler("addadmin", add_admin))
 app.add_handler(CommandHandler("banadmin", ban_admin))
 app.add_handler(CommandHandler("admins", list_admins))
 app.add_handler(CommandHandler("broadcast", broadcast))
 app.add_handler(CommandHandler("broadcast_pub", broadcast_pub))
 app.add_handler(CommandHandler("stats", stats))
-
 app.add_handler(MessageHandler(filters.UpdateType.CHANNEL_POST, handle_channel_post))
 
+# === DÉMARRAGE (CORRECT POUR KOYEB / RENDER / SERVEUR) ===
+nest_asyncio.apply()
 print("✅ Bot lancé...")
-async def main():
-    asyncio.create_task(keep_auto_delete_alive())
-    await app.run_polling(drop_pending_updates=True, allowed_updates=["message", "channel_post"])
 
-try:
-    asyncio.run(main())
-except Exception as e:
-    print(f"❌ Erreur: {e}")
-finally:
-    print("Bot arrêté.")
+loop = asyncio.get_event_loop()
+loop.create_task(keep_auto_delete_alive())
+loop.create_task(app.run_polling(drop_pending_updates=True, allowed_updates=["message", "channel_post"]))
+loop.run_forever()
