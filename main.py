@@ -1,4 +1,4 @@
-import asyncio
+pimport asyncio
 import json
 import os
 import nest_asyncio
@@ -10,7 +10,7 @@ from telegram.ext import (
 
 nest_asyncio.apply()
 
-TOKEN = "7334376683:AAGbw9r-3YQ8lwEur1bSe0GkA9tCYABkmIM"  # Remplace ici avec ton vrai token
+TOKEN = "7334376683:AAGbw9r-3YQ8lwEur1bSe0GkA9tCYABkmIM"
 DATA_FILE = "data.json"
 
 if not os.path.exists(DATA_FILE):
@@ -42,7 +42,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         save_data(data)
 
     keyboard = [[InlineKeyboardButton("🔗 Canal", url="https://t.me/sineur_x_bot")]]
-    await update.message.reply_text(
+    await update.effective_message.reply_text(
         "Bienvenue ! Bot actif.\n\n"
         "/on - Activer suppression\n"
         "/off - Désactiver\n"
@@ -56,14 +56,14 @@ async def cmd_on(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = load_data()
     data["groups"].setdefault(chat_id, {"enabled": True, "delay": 3})["enabled"] = True
     save_data(data)
-    await update.message.reply_text("✅ Suppression activée.")
+    await update.effective_message.reply_text("✅ Suppression activée.")
 
 async def cmd_off(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
     data = load_data()
     data["groups"].setdefault(chat_id, {})["enabled"] = False
     save_data(data)
-    await update.message.reply_text("❌ Suppression désactivée.")
+    await update.effective_message.reply_text("❌ Suppression désactivée.")
 
 async def cmd_setdelay(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
@@ -72,9 +72,9 @@ async def cmd_setdelay(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data = load_data()
         data["groups"].setdefault(chat_id, {})["delay"] = delay
         save_data(data)
-        await update.message.reply_text(f"⏱ Délai défini à {delay} sec.")
+        await update.effective_message.reply_text(f"⏱ Délai défini à {delay} sec.")
     except:
-        await update.message.reply_text("Utilisation : /setdelay 10")
+        await update.effective_message.reply_text("Utilisation : /setdelay 10")
 
 async def add_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -85,9 +85,9 @@ async def add_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if new_id not in data["admins"]:
                 data["admins"].append(new_id)
                 save_data(data)
-                await update.message.reply_text(f"✅ Admin ajouté : {new_id}")
+                await update.effective_message.reply_text(f"✅ Admin ajouté : {new_id}")
         except:
-            await update.message.reply_text("Utilisation : /addadmin <id>")
+            await update.effective_message.reply_text("Utilisation : /addadmin <id>")
 
 async def ban_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -98,14 +98,14 @@ async def ban_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if ban_id in data["admins"]:
                 data["admins"].remove(ban_id)
                 save_data(data)
-                await update.message.reply_text(f"❌ Admin retiré : {ban_id}")
+                await update.effective_message.reply_text(f"❌ Admin retiré : {ban_id}")
         except:
-            await update.message.reply_text("Utilisation : /banadmin <id>")
+            await update.effective_message.reply_text("Utilisation : /banadmin <id>")
 
 async def list_admins(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = load_data()
     text = "👑 Admins :\n" + "\n".join([str(a) for a in data["admins"]])
-    await update.message.reply_text(text)
+    await update.effective_message.reply_text(text)
 
 async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -118,7 +118,7 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(chat_id=uid, text=msg)
         except:
             pass
-    await update.message.reply_text("📣 Message envoyé.")
+    await update.effective_message.reply_text("📣 Message envoyé.")
 
 async def broadcast_pub(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -129,14 +129,14 @@ async def broadcast_pub(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for gid in data["groups"]:
         try:
             await context.bot.send_message(chat_id=gid, text=msg)
-        except:
-            pass
-    await update.message.reply_text("📢 Envoyé dans les groupes.")
+        except Exception as e:
+            print(f"Erreur canal {gid} :", e)
+    await update.effective_message.reply_text("📢 Envoyé dans les canaux.")
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = load_data()
-    await update.message.reply_text(
-        f"👥 Users : {len(data['users'])}\n📣 Canaux : {len(data['groups'])}"
+    await update.effective_message.reply_text(
+        f"👥 Utilisateurs : {len(data['users'])}\n📣 Canaux suivis : {len(data['groups'])}"
     )
 
 async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -158,9 +158,13 @@ async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE
         except Exception as e:
             print("Erreur suppression :", e)
 
+async def handle_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Permet les /commandes dans les canaux
+    await app.process_update(update)
+
 app = ApplicationBuilder().token(TOKEN).build()
 
-# Handlers
+# Handlers commandes usuelles
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("on", cmd_on))
 app.add_handler(CommandHandler("off", cmd_off))
@@ -171,7 +175,11 @@ app.add_handler(CommandHandler("admins", list_admins))
 app.add_handler(CommandHandler("broadcast", broadcast))
 app.add_handler(CommandHandler("broadcast_pub", broadcast_pub))
 app.add_handler(CommandHandler("stats", stats))
+
+# Messages de canal
 app.add_handler(MessageHandler(filters.UpdateType.CHANNEL_POST, handle_channel_post))
+# Commandes dans les canaux
+app.add_handler(MessageHandler(filters.ChannelType.CHANNEL & filters.TEXT, handle_channel_command))
 
 print("✅ Bot lancé...")
 
