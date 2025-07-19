@@ -1,9 +1,10 @@
 from aiohttp import web
 
-async def health(request):
-    return web.Response(text="OK")
+async def handler(request):
+    return web.Response(text="Bot Actif - Auto Ping OK")
 
 app = web.Application()
-app.router.add_get("/", health)
+app.router.add_get("/", handler)
 
-web.run_app(app, port=8000)
+if __name__ == "__main__":
+    web.run_app(app, host="0.0.0.0", port=8000)
