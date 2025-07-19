@@ -10,7 +10,7 @@ from telegram.ext import (
 
 nest_asyncio.apply()
 
-TOKEN = "TON_TOKEN_ICI"  # Remplace ici avec ton vrai token
+TOKEN = "7334376683:AAGbw9r-3YQ8lwEur1bSe0GkA9tCYABkmIM"  # Remplace ici avec ton vrai token
 DATA_FILE = "data.json"
 
 if not os.path.exists(DATA_FILE):
