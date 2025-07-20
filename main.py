@@ -4,10 +4,10 @@ import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
-    ChannelPostHandler, ContextTypes, filters
+    ContextTypes, filters
 )
 
-# === CONFIGURATION ===
+# === CONFIG ===
 TOKEN = "7334376683:AAGbw9r-3YQ8lwEur1bSe0GkA9tCYABkmIM"
 DATA_FILE = "data.json"
 
@@ -24,7 +24,7 @@ def save_data(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
-# === COMMANDES DE BASE ===
+# === START ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     data = load_data()
@@ -33,28 +33,32 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         save_data(data)
 
     keyboard = [[InlineKeyboardButton("Rejoindre le canal", url="https://t.me/sineur_x_bot")]]
-    texte = (
-        "Bienvenue !\nCe bot supprime automatiquement les messages dans les groupes et canaux.\n\n"
-        "Commandes :\n"
+    text = (
+        "Bienvenue !\nCe bot supprime automatiquement les messages dans les groupes et canaux.\n"
+        "Commandes disponibles pour tous :\n"
         "/on - Activer l’auto-suppression\n"
         "/off - Désactiver l’auto-suppression\n"
         "/setdelay [secondes] - Définir le délai de suppression"
     )
-    await update.message.reply_text(texte, reply_markup=InlineKeyboardMarkup(keyboard))
+    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
+# === COMMANDES PUBLIQUES ===
 async def cmd_on(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
     data = load_data()
-    data["groups"].setdefault(chat_id, {})["enabled"] = True
+    if chat_id not in data["groups"]:
+        data["groups"][chat_id] = {"enabled": True, "delay": 3}
+    else:
+        data["groups"][chat_id]["enabled"] = True
     save_data(data)
-    await update.message.reply_text("✅ Auto-suppression activée.")
+    await update.message.reply_text("Auto-suppression activée.")
 
 async def cmd_off(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
     data = load_data()
     data["groups"].setdefault(chat_id, {})["enabled"] = False
     save_data(data)
-    await update.message.reply_text("❌ Auto-suppression désactivée.")
+    await update.message.reply_text("Auto-suppression désactivée.")
 
 async def cmd_setdelay(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
@@ -63,67 +67,96 @@ async def cmd_setdelay(update: Update, context: ContextTypes.DEFAULT_TYPE):
         delay = int(context.args[0])
         data["groups"].setdefault(chat_id, {})["delay"] = delay
         save_data(data)
-        await update.message.reply_text(f"⏱️ Délai de suppression défini à {delay} secondes.")
+        await update.message.reply_text(f"Délai défini à {delay} sec.")
     except:
-        await update.message.reply_text("❗ Utilisation : /setdelay 10")
+        await update.message.reply_text("Usage : /setdelay 10")
 
-# === GESTION DES GROUPES ===
+# === AUTO DELETE GROUPE ===
 async def auto_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return
+        
     chat_id = str(update.effective_chat.id)
     data = load_data()
 
+    # Enregistrement du groupe automatiquement
     if chat_id not in data["groups"]:
         data["groups"][chat_id] = {"enabled": False, "delay": 3}
         save_data(data)
 
+    # Commande /on dans groupe
+    if update.message.text == "/on":
+        data["groups"][chat_id]["enabled"] = True
+        save_data(data)
+        await update.message.reply_text("Auto-suppression activée.")
+        return
+
+    # Commande /setdelay dans groupe
+    if update.message.text and update.message.text.startswith("/setdelay"):
+        parts = update.message.text.split()
+        if len(parts) == 2 and parts[1].isdigit():
+            delay = int(parts[1])
+            data["groups"][chat_id]["delay"] = delay
+            data["groups"][chat_id].setdefault("enabled", True)
+            save_data(data)
+            await update.message.reply_text(f"Délai défini à {delay} sec.")
+            return
+
+    # Suppression auto groupe
     conf = data["groups"].get(chat_id, {})
     if conf.get("enabled", False):
         delay = conf.get("delay", 3)
+        print(f"[GROUPE] Message reçu dans {chat_id} - Suppression dans {delay}s")
         await asyncio.sleep(delay)
         try:
             await update.message.delete()
+            print("[GROUPE] Message supprimé.")
         except Exception as e:
-            print(f"[GROUPE] Erreur suppression : {e}")
+            print("[GROUPE] Erreur suppression :", e)
 
-# === GESTION DES CANAUX ===
+# === AUTO DELETE CANAL ===
 async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    post = update.channel_post
-    chat_id = str(post.chat_id)
-    text = post.text or ""
+    chat_id = str(update.channel_post.chat_id)
+    text = update.channel_post.text or ""
     data = load_data()
 
+    print(f"[CANAL] Message détecté dans canal {chat_id} : {text[:30]}...")
+
+    # Enregistrement du canal automatiquement
     if chat_id not in data["groups"]:
         data["groups"][chat_id] = {"enabled": False, "delay": 3}
         save_data(data)
 
+    # Commande /on dans canal
     if text == "/on":
         data["groups"][chat_id]["enabled"] = True
         save_data(data)
-        await context.bot.send_message(chat_id, "✅ Auto-suppression activée.")
+        await context.bot.send_message(chat_id=chat_id, text="Auto-suppression activée.")
         return
 
+    # Commande /setdelay dans canal
     if text.startswith("/setdelay"):
         parts = text.split()
         if len(parts) == 2 and parts[1].isdigit():
             delay = int(parts[1])
             data["groups"][chat_id]["delay"] = delay
-            data["groups"][chat_id]["enabled"] = True
+            data["groups"][chat_id].setdefault("enabled", True)
             save_data(data)
-            await context.bot.send_message(chat_id, f"⏱️ Délai de suppression défini à {delay} secondes.")
-            return
+            await context.bot.send_message(chat_id=chat_id, text=f"Délai défini à {delay} sec.")
 
+    # Suppression auto canal
     conf = data["groups"].get(chat_id, {})
     if conf.get("enabled", False):
         delay = conf.get("delay", 3)
+        print(f"[CANAL] Suppression programmée dans {delay}s")
         await asyncio.sleep(delay)
         try:
-            await context.bot.delete_message(chat_id, post.message_id)
+            await context.bot.delete_message(chat_id=chat_id, message_id=update.channel_post.message_id)
+            print("[CANAL] Message supprimé.")
         except Exception as e:
-            print(f"[CANAL] Erreur suppression : {e}")
+            print("[CANAL] Erreur suppression :", e)
 
-# === ADMINISTRATION ===
+# === ADMIN ===
 def is_admin(user_id):
     return user_id == 5116530698
 
@@ -136,9 +169,9 @@ async def add_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user.id not in data["admins"]:
             data["admins"].append(user.id)
             save_data(data)
-            await update.message.reply_text(f"✅ @{username} ajouté aux admins.")
+            await update.message.reply_text(f"{username} ajouté aux admins.")
     except:
-        await update.message.reply_text("⚠️ Utilisation : /addadmin @username")
+        await update.message.reply_text("Erreur. Utilise /addadmin @username")
 
 async def ban_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id): return
@@ -149,14 +182,14 @@ async def ban_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user.id in data["admins"]:
             data["admins"].remove(user.id)
             save_data(data)
-            await update.message.reply_text(f"❌ @{username} retiré des admins.")
+            await update.message.reply_text(f"{username} retiré des admins.")
     except:
-        await update.message.reply_text("⚠️ Utilisation : /banadmin @username")
+        await update.message.reply_text("Erreur. Utilise /banadmin @username")
 
 async def list_admins(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = load_data()
-    txt = "👮 Admins :\n" + "\n".join([str(a) for a in data["admins"]])
-    await update.message.reply_text(txt)
+    text = "Admins :\n" + "\n".join([str(a) for a in data["admins"]])
+    await update.message.reply_text(text)
 
 async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id): return
@@ -169,7 +202,7 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
             count += 1
         except:
             pass
-    await update.message.reply_text(f"📤 Message envoyé à {count} utilisateurs.")
+    await update.message.reply_text(f"Message envoyé à {count} utilisateurs.")
 
 async def broadcast_pub(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id): return
@@ -182,27 +215,25 @@ async def broadcast_pub(update: Update, context: ContextTypes.DEFAULT_TYPE):
             count += 1
         except:
             pass
-    await update.message.reply_text(f"📣 Message envoyé dans {count} groupes/canaux.")
+    await update.message.reply_text(f"Message envoyé dans {count} groupes/canaux.")
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = load_data()
+    groupes = [k for k in data['groups'] if str(k).startswith("-100")]
     await update.message.reply_text(
-        f"📊 Stats :\n"
-        f"👥 Utilisateurs : {len(data['users'])}\n"
-        f"📢 Groupes/Canaux : {len(data['groups'])}\n"
-        f"👮 Admins : {len(data['admins'])}"
+        f"Groupes/Canaux enregistrés : {len(data['groups'])}\n"
+        f"Utilisateurs uniques : {len(data['users'])}\n"
+        f"Admins : {len(data['admins'])}"
     )
 
-# === LANCEMENT DU BOT ===
+# === MAIN ===
 app = ApplicationBuilder().token(TOKEN).build()
 
-# Commandes utilisateur
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("on", cmd_on))
 app.add_handler(CommandHandler("off", cmd_off))
 app.add_handler(CommandHandler("setdelay", cmd_setdelay))
 
-# Admin
 app.add_handler(CommandHandler("addadmin", add_admin))
 app.add_handler(CommandHandler("banadmin", ban_admin))
 app.add_handler(CommandHandler("admins", list_admins))
@@ -210,11 +241,13 @@ app.add_handler(CommandHandler("broadcast", broadcast))
 app.add_handler(CommandHandler("broadcast_pub", broadcast_pub))
 app.add_handler(CommandHandler("stats", stats))
 
-# Message dans groupe
 app.add_handler(MessageHandler(filters.ChatType.GROUPS & ~filters.COMMAND, auto_delete))
+app.add_handler(MessageHandler(filters.UpdateType.CHANNEL_POST, handle_channel_post))
 
-# Message dans canal
-app.add_handler(ChannelPostHandler(handle_channel_post))
-
-print("🚀 Bot lancé...")
-app.run_polling(drop_pending_updates=True, allowed_updates=["message", "channel_post"])
+print("Bot lancé...")
+try:
+    app.run_polling(drop_pending_updates=True, allowed_updates=["message", "channel_post"])
+except Exception as e:
+    print(f"Erreur: {e}")
+finally:
+    print("Bot arrêté.")
