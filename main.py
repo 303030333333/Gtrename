@@ -99,7 +99,7 @@ def download_video(url: str) -> str:
     Télécharge une vidéo YouTube et renvoie le chemin du fichier téléchargé.
     """
     output_filename = f"{uuid.uuid4()}.mp4"
-    
+
     # Liste de User-Agents plus récents et variés
     user_agents = [
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -109,7 +109,7 @@ def download_video(url: str) -> str:
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0',
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:133.0) Gecko/20100101 Firefox/133.0'
     ]
-    
+
     # Configuration améliorée pour yt-dlp avec contournement anti-bot ultra-avancé
     ydl_opts = {
         'format': 'best[height<=720][filesize<45M]/best[height<=480][filesize<45M]/best[height<=360][filesize<45M]/worst[filesize<50M]/worst',
@@ -220,7 +220,7 @@ def download_video_mobile(url: str) -> str:
     Télécharge une vidéo YouTube avec le client mobile ultra-optimisé.
     """
     output_filename = f"{uuid.uuid4()}.mp4"
-    
+
     mobile_opts = {
         'format': 'best[height<=720][filesize<45M]/best[height<=480][filesize<45M]/worst[filesize<50M]',
         'outtmpl': output_filename,
@@ -252,16 +252,16 @@ def download_video_mobile(url: str) -> str:
         'max_sleep_interval': 8,
         'no_check_certificate': True,
     }
-    
+
     try:
         with yt_dlp.YoutubeDL(mobile_opts) as ydl:
             ydl.download([url])
-        
+
         if os.path.exists(output_filename) and os.path.getsize(output_filename) > 1024:
             return output_filename
     except Exception as e:
         print(f"Erreur client mobile: {e}")
-    
+
     if os.path.exists(output_filename):
         try:
             os.remove(output_filename)
@@ -274,7 +274,7 @@ def download_video_tv(url: str) -> str:
     Télécharge une vidéo YouTube avec le client TV ultra-optimisé.
     """
     output_filename = f"{uuid.uuid4()}.mp4"
-    
+
     tv_opts = {
         'format': 'best[height<=720][filesize<45M]/best[height<=480][filesize<45M]/worst[filesize<50M]',
         'outtmpl': output_filename,
@@ -304,16 +304,16 @@ def download_video_tv(url: str) -> str:
         'max_sleep_interval': 10,
         'no_check_certificate': True,
     }
-    
+
     try:
         with yt_dlp.YoutubeDL(tv_opts) as ydl:
             ydl.download([url])
-        
+
         if os.path.exists(output_filename) and os.path.getsize(output_filename) > 1024:
             return output_filename
     except Exception as e:
         print(f"Erreur client TV: {e}")
-    
+
     if os.path.exists(output_filename):
         try:
             os.remove(output_filename)
@@ -395,16 +395,27 @@ async def get_user_stats(user_id: int = None):
             "total_downloads": 0,
             "banned_users": len(banned_users) if 'banned_users' in globals() else 0
         }
-    
-    if user_id:
 
+    if user_id:
+        user = await users_collection.find_one({"user_id": user_id})
+        downloads = await downloads_collection.count_documents({"user_id": user_id})
+        return {"user": user, "downloads": downloads}
+    else:
+        total_users = await users_collection.count_documents({})
+        total_downloads = await downloads_collection.count_documents({})
+        banned_users_count = await users_collection.count_documents({"is_banned": True})
+        return {
+            "total_users": total_users,
+            "total_downloads": total_downloads,
+            "banned_users": banned_users_count
+        }
 
 def download_video_web_embedded(url: str) -> str:
     """
     Télécharge une vidéo YouTube avec le client web embarqué - contournement avancé.
     """
     output_filename = f"{uuid.uuid4()}.mp4"
-    
+
     embedded_opts = {
         'format': 'best[height<=720][filesize<45M]/best[height<=480][filesize<45M]/worst[filesize<50M]',
         'outtmpl': output_filename,
@@ -434,16 +445,16 @@ def download_video_web_embedded(url: str) -> str:
         'max_sleep_interval': 12,
         'no_check_certificate': True,
     }
-    
+
     try:
         with yt_dlp.YoutubeDL(embedded_opts) as ydl:
             ydl.download([url])
-        
+
         if os.path.exists(output_filename) and os.path.getsize(output_filename) > 1024:
             return output_filename
     except Exception as e:
         print(f"Erreur client web embarqué: {e}")
-    
+
     if os.path.exists(output_filename):
         try:
             os.remove(output_filename)
@@ -456,7 +467,7 @@ def download_video_ios(url: str) -> str:
     Télécharge une vidéo YouTube avec le client iOS - contournement avancé.
     """
     output_filename = f"{uuid.uuid4()}.mp4"
-    
+
     ios_opts = {
         'format': 'best[height<=720][filesize<45M]/best[height<=480][filesize<45M]/worst[filesize<50M]',
         'outtmpl': output_filename,
@@ -484,16 +495,16 @@ def download_video_ios(url: str) -> str:
         'max_sleep_interval': 10,
         'no_check_certificate': True,
     }
-    
+
     try:
         with yt_dlp.YoutubeDL(ios_opts) as ydl:
             ydl.download([url])
-        
+
         if os.path.exists(output_filename) and os.path.getsize(output_filename) > 1024:
             return output_filename
     except Exception as e:
         print(f"Erreur client iOS: {e}")
-    
+
     if os.path.exists(output_filename):
         try:
             os.remove(output_filename)
@@ -506,7 +517,7 @@ def download_video_age_gate_bypass(url: str) -> str:
     Télécharge une vidéo YouTube en contournant les restrictions d'âge.
     """
     output_filename = f"{uuid.uuid4()}.mp4"
-    
+
     age_gate_opts = {
         'format': 'best[height<=720][filesize<45M]/best[height<=480][filesize<45M]/worst[filesize<50M]',
         'outtmpl': output_filename,
@@ -530,35 +541,22 @@ def download_video_age_gate_bypass(url: str) -> str:
         'socket_timeout': 90,
         'no_check_certificate': True,
     }
-    
+
     try:
         with yt_dlp.YoutubeDL(age_gate_opts) as ydl:
             ydl.download([url])
-        
+
         if os.path.exists(output_filename) and os.path.getsize(output_filename) > 1024:
             return output_filename
     except Exception as e:
         print(f"Erreur contournement restriction d'âge: {e}")
-    
+
     if os.path.exists(output_filename):
         try:
             os.remove(output_filename)
         except:
             pass
     return None
-
-        user = await users_collection.find_one({"user_id": user_id})
-        downloads = await downloads_collection.count_documents({"user_id": user_id})
-        return {"user": user, "downloads": downloads}
-    else:
-        total_users = await users_collection.count_documents({})
-        total_downloads = await downloads_collection.count_documents({})
-        banned_users_count = await users_collection.count_documents({"is_banned": True})
-        return {
-            "total_users": total_users,
-            "total_downloads": total_downloads,
-            "banned_users": banned_users_count
-        }
 
 async def ban_user_db(user_id: int, banned_by: int):
     """Bannir un utilisateur dans MongoDB"""
@@ -597,7 +595,7 @@ async def cmd_start(message: types.Message):
         return
 
     await save_user(user_id, username, first_name)
-    
+
     # Initialize subscribers if it doesn't exist
     global subscribers
     if 'subscribers' not in globals():
@@ -615,7 +613,7 @@ async def cmd_start(message: types.Message):
             ]
         ]
     )
-    
+
     # Message de bienvenue avec image
     welcome_text = ("🎬 **Bienvenue sur notre bot de téléchargement YouTube !** 📱\n\n"
                    "Ce bot vous permet de télécharger facilement des vidéos depuis YouTube.\n\n"
@@ -626,7 +624,7 @@ async def cmd_start(message: types.Message):
                    "1. Cliquez sur 'Télécharger une vidéo'\n"
                    "2. Ou envoyez directement votre lien YouTube\n\n"
                    "Choisissez une option ci-dessous pour commencer :")
-    
+
     # Essayer d'envoyer avec l'image
     try:
         # Utiliser une image YouTube fonctionnelle
@@ -703,14 +701,14 @@ async def handle_video_link(message: types.Message):
     try:
         # Nettoyer l'URL
         url = url.strip()
-        
+
         # Ajouter https:// si manquant
         if not url.startswith(('http://', 'https://')):
             if url.startswith('www.') or url.startswith('youtube.com') or url.startswith('youtu.be'):
                 url = 'https://' + url
             elif url.startswith('m.youtube.com'):
                 url = 'https://' + url
-        
+
         # Vérifier que c'est bien un lien YouTube valide
         youtube_domains = ['youtube.com', 'youtu.be', 'm.youtube.com', 'www.youtube.com', 'music.youtube.com']
         if not any(domain in url.lower() for domain in youtube_domains):
@@ -726,30 +724,30 @@ async def handle_video_link(message: types.Message):
         await msg.edit_text("📥 Récupération des informations de la vidéo...")
 
         video_path = None
-        
+
         # Méthode 1 : Configuration standard ultra-optimisée
         video_path = download_video(url)
-        
+
         # Méthode 2 : Si échec, essayer avec client mobile optimisé
         if not video_path or not os.path.exists(video_path):
             await msg.edit_text("🔄 Tentative avec client mobile Android...")
             video_path = download_video_mobile(url)
-        
+
         # Méthode 3 : Si échec, essayer avec client iOS
         if not video_path or not os.path.exists(video_path):
             await msg.edit_text("🔄 Tentative avec client iOS...")
             video_path = download_video_ios(url)
-        
+
         # Méthode 4 : Si échec, essayer avec client TV
         if not video_path or not os.path.exists(video_path):
             await msg.edit_text("🔄 Tentative avec client Smart TV...")
             video_path = download_video_tv(url)
-        
+
         # Méthode 5 : Si échec, essayer avec client web embarqué
         if not video_path or not os.path.exists(video_path):
             await msg.edit_text("🔄 Tentative avec client web embarqué...")
             video_path = download_video_web_embedded(url)
-        
+
         # Méthode 6 : Si échec, essayer de contourner les restrictions d'âge
         if not video_path or not os.path.exists(video_path):
             await msg.edit_text("🔄 Contournement des restrictions...")
@@ -797,10 +795,10 @@ async def handle_video_link(message: types.Message):
         else:
             # Logger l'échec du téléchargement
             await log_download(user_id, url, success=False, error_msg="Impossible de télécharger la vidéo")
-            
+
             # Essayer une approche alternative avec des formats audio
             await msg.edit_text("🔄 Tentative de téléchargement audio...")
-            
+
             audio_opts = {
                 'format': 'bestaudio[filesize<45M]/worst[filesize<45M]',
                 'outtmpl': f"{uuid.uuid4()}.%(ext)s",
@@ -811,7 +809,7 @@ async def handle_video_link(message: types.Message):
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                 }
             }
-            
+
             try:
                 with yt_dlp.YoutubeDL(audio_opts) as ydl:
                     ydl.download([url])
@@ -831,7 +829,7 @@ async def handle_video_link(message: types.Message):
                                 os.remove(f)
             except:
                 pass
-            
+
             await msg.edit_text(
                 "❌ Impossible de télécharger cette vidéo.\n\n"
                 "🔍 **Causes possibles:**\n"
@@ -1625,7 +1623,7 @@ async def main():
         await bot.close()
         await asyncio.sleep(5)  # Attendre 5 secondes pour éviter les conflits
         print("✅ Webhook supprimé et mises à jour en attente effacées")
-        
+
         # Recréer l'instance du bot
         bot = Bot(token=BOT_TOKEN)
     except Exception as e:
@@ -1656,7 +1654,7 @@ async def main():
     # Attendre avant de démarrer le polling pour éviter les conflits
     print("⏳ Attente de 3 secondes pour éviter les conflits...")
     await asyncio.sleep(3)
-    
+
     # Démarrer le bot avec gestion d'erreurs
     try:
         print("🔄 Démarrage du polling...")
