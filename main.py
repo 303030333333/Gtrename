@@ -100,7 +100,16 @@ def download_video(url: str) -> str:
     """
     output_filename = f"{uuid.uuid4()}.mp4"
     
-    # Configuration améliorée pour yt-dlp avec plus d'options de fallback
+    # Liste de User-Agents pour rotation
+    user_agents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0'
+    ]
+    
+    # Configuration améliorée pour yt-dlp avec rotation d'User-Agent
     ydl_opts = {
         'format': 'best[height<=720][filesize<45M]/best[height<=480][filesize<45M]/best[height<=360][filesize<45M]/worst[filesize<50M]/worst',
         'outtmpl': output_filename,
@@ -109,20 +118,29 @@ def download_video(url: str) -> str:
         'quiet': False,
         'no_warnings': False,
         'ignoreerrors': False,
-        'extractor_retries': 5,
-        'socket_timeout': 120,
+        'extractor_retries': 3,
+        'socket_timeout': 60,
         'http_chunk_size': 10485760,
-        'retries': 5,
+        'retries': 3,
         'extract_flat': False,
         'writethumbnail': False,
         'writeinfojson': False,
-        # Ajouter des headers pour éviter la détection de bot
+        # Rotation d'User-Agent
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'User-Agent': user_agents[hash(url) % len(user_agents)],
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-us,en;q=0.5',
+            'Accept-Encoding': 'gzip,deflate',
+            'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
+            'Keep-Alive': '115',
+            'Connection': 'keep-alive',
         },
         # Options supplémentaires pour contourner les restrictions
         'geo_bypass': True,
         'geo_bypass_country': 'US',
+        # Éviter la détection de bot
+        'sleep_interval': 1,
+        'max_sleep_interval': 5,
     }
 
     try:
@@ -502,12 +520,36 @@ async def handle_video_link(message: types.Message):
         error_msg = str(e)
         if "Sign in to confirm" in error_msg or "bot" in error_msg.lower():
             await msg.edit_text(
-                "🤖 YouTube a détecté une activité automatisée.\n"
-                "Ceci est temporaire, veuillez réessayer dans quelques minutes.\n\n"
-                "💡 Astuce: Essayez avec une vidéo différente."
+                "🤖 **YouTube a détecté une activité automatisée.**\n\n"
+                "🔄 **Solutions à essayer :**\n"
+                "• Attendez 5-10 minutes avant de réessayer\n"
+                "• Essayez avec une vidéo différente\n"
+                "• Utilisez un lien plus court (youtu.be/...)\n"
+                "• Vérifiez que la vidéo est publique\n\n"
+                "⚠️ **Note :** Ce problème est temporaire et se résout automatiquement.",
+                parse_mode="Markdown"
+            )
+        elif "Private video" in error_msg or "unavailable" in error_msg.lower():
+            await msg.edit_text(
+                "🔒 **Vidéo non accessible**\n\n"
+                "Cette vidéo est soit :\n"
+                "• Privée ou supprimée\n"
+                "• Restreinte géographiquement\n"
+                "• Non listée avec restrictions\n\n"
+                "Essayez avec une autre vidéo publique."
+            )
+        elif "Video unavailable" in error_msg:
+            await msg.edit_text(
+                "📵 **Vidéo indisponible**\n\n"
+                "Causes possibles :\n"
+                "• Vidéo supprimée par l'auteur\n"
+                "• Problème de copyright\n"
+                "• Restriction d'âge\n\n"
+                "Veuillez essayer avec une autre vidéo."
             )
         else:
-            await msg.edit_text(f"❌ Erreur: {error_msg[:200]}...")
+            await msg.edit_text(f"❌ **Erreur technique :** {error_msg[:150]}...\n\n"
+                               "Réessayez dans quelques minutes ou contactez l'administrateur.")
 
         print(f"Exception complète dans handle_video_link: {e}")
 
@@ -1244,10 +1286,17 @@ async def main():
     except Exception as e:
         print(f"Erreur lors du nettoyage: {e}")
 
-    # Arrêter toutes les instances précédentes du bot
+    # Arrêter toutes les instances précédentes du bot avec délai
     try:
+        print("🔄 Arrêt des instances précédentes...")
         await bot.delete_webhook(drop_pending_updates=True)
-        print("Webhook supprimé et mises à jour en attente effacées")
+        await bot.close()
+        await asyncio.sleep(5)  # Attendre 5 secondes pour éviter les conflits
+        print("✅ Webhook supprimé et mises à jour en attente effacées")
+        
+        # Recréer l'instance du bot
+        global bot
+        bot = Bot(token=BOT_TOKEN)
     except Exception as e:
         print(f"Erreur lors de la suppression du webhook: {e}")
 
@@ -1269,10 +1318,23 @@ async def main():
 
     print("🚀 Bot démarré! Le bot est prêt à recevoir des commandes.")
     print(f"✅ Serveur web démarré sur http://0.0.0.0:{port}")
-    print(f"✅ URL de webhook: https://{os.environ.get('REPL_SLUG')}.{os.environ.get('REPL_OWNER')}.repl.co")
+    repl_slug = os.environ.get('REPL_SLUG', 'workspace')
+    repl_owner = os.environ.get('REPL_OWNER', 'user')
+    print(f"✅ URL de webhook: https://{repl_slug}.{repl_owner}.repl.co")
 
-    # Démarrer le bot
-    await dp.start_polling(bot)
+    # Attendre avant de démarrer le polling pour éviter les conflits
+    print("⏳ Attente de 3 secondes pour éviter les conflits...")
+    await asyncio.sleep(3)
+    
+    # Démarrer le bot avec gestion d'erreurs
+    try:
+        print("🔄 Démarrage du polling...")
+        await dp.start_polling(bot, skip_updates=True)
+    except Exception as e:
+        print(f"❌ Erreur lors du démarrage du polling: {e}")
+        await asyncio.sleep(10)
+        print("🔄 Nouvelle tentative...")
+        await dp.start_polling(bot, skip_updates=True)
 
 if __name__ == "__main__":
     asyncio.run(main())
