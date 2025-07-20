@@ -73,15 +73,7 @@ def download_video(url: str) -> str:
     """
     Télécharge une vidéo YouTube et renvoie le chemin du fichier téléchargé.
     """
-    #g
-    @dp.message(Command("start"))
-async def cmd_start(message: types.Message, bot: Bot):
-    user_id = message.from_user.id
-
-    if not await check_subscription(user_id, bot):  # ✅ Appel corrigé
-        return
-
-    await message.answer("Bienvenue ! Envoie-moi un lien YouTube.")
+ 
     # Extraction de l'ID de la vidéo à partir de différents formats d'URL
     video_id = None
     if "youtu.be/" in url:
@@ -100,7 +92,15 @@ async def cmd_start(message: types.Message, bot: Bot):
     print(f"URL normalisée: {clean_url}")
 
     output_filename = f"{uuid.uuid4()}.mp4"
+   #g
+    @dp.message(Command("start"))
+async def cmd_start(message: types.Message, bot: Bot):
+    user_id = message.from_user.id
 
+    if not await check_subscription(user_id, bot):  # ✅ Appel corrigé
+        return
+
+    await message.answer("Bienvenue ! Envoie-moi un lien YouTube.")
     # Configuration de base pour yt-dlp
     ydl_opts = {
         # Format progressif pour éviter la nécessité de fusion audio/vidéo
