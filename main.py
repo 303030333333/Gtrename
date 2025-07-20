@@ -100,19 +100,29 @@ def download_video(url: str) -> str:
     """
     output_filename = f"{uuid.uuid4()}.mp4"
     
-    # Configuration améliorée pour yt-dlp
+    # Configuration améliorée pour yt-dlp avec plus d'options de fallback
     ydl_opts = {
-        'format': 'best[height<=720][filesize<45M]/best[height<=480][filesize<45M]/best[filesize<45M]/worst',
+        'format': 'best[height<=720][filesize<45M]/best[height<=480][filesize<45M]/best[height<=360][filesize<45M]/worst[filesize<50M]/worst',
         'outtmpl': output_filename,
         'merge_output_format': 'mp4',
         'noplaylist': True,
-        'quiet': False,  # Activer les logs pour débugger
+        'quiet': False,
         'no_warnings': False,
         'ignoreerrors': False,
-        'extractor_retries': 3,
-        'socket_timeout': 60,
-        'http_chunk_size': 10485760,  # 10MB chunks
-        'retries': 3,
+        'extractor_retries': 5,
+        'socket_timeout': 120,
+        'http_chunk_size': 10485760,
+        'retries': 5,
+        'extract_flat': False,
+        'writethumbnail': False,
+        'writeinfojson': False,
+        # Ajouter des headers pour éviter la détection de bot
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        },
+        # Options supplémentaires pour contourner les restrictions
+        'geo_bypass': True,
+        'geo_bypass_country': 'US',
     }
 
     try:
@@ -437,14 +447,55 @@ async def handle_video_link(message: types.Message):
         else:
             # Logger l'échec du téléchargement
             await log_download(user_id, url, success=False, error_msg="Impossible de télécharger la vidéo")
+            
+            # Essayer une approche alternative avec des formats audio
+            await msg.edit_text("🔄 Tentative de téléchargement audio...")
+            
+            audio_opts = {
+                'format': 'bestaudio[filesize<45M]/worst[filesize<45M]',
+                'outtmpl': f"{uuid.uuid4()}.%(ext)s",
+                'noplaylist': True,
+                'quiet': True,
+                'extract_flat': False,
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+            }
+            
+            try:
+                with yt_dlp.YoutubeDL(audio_opts) as ydl:
+                    ydl.download([url])
+                    # Chercher le fichier audio téléchargé
+                    for f in os.listdir('.'):
+                        if f.startswith(audio_opts['outtmpl'].split('.')[0]):
+                            if os.path.getsize(f) > 1024:
+                                await bot.send_audio(
+                                    message.chat.id,
+                                    audio=types.FSInputFile(f),
+                                    caption="🎵 Voici l'audio de la vidéo!"
+                                )
+                                os.remove(f)
+                                await msg.delete()
+                                return
+                            else:
+                                os.remove(f)
+            except:
+                pass
+            
             await msg.edit_text(
                 "❌ Impossible de télécharger cette vidéo.\n\n"
-                "Causes possibles:\n"
-                "• La vidéo est privée ou supprimée\n"
-                "• Restrictions géographiques\n"
+                "🔍 **Causes possibles:**\n"
+                "• La vidéo est privée, supprimée ou restreinte\n"
+                "• Restrictions géographiques actives\n"
                 "• Vidéo protégée par le créateur\n"
-                "• Problème temporaire de YouTube\n\n"
-                "Veuillez essayer avec une autre vidéo."
+                "• Problème temporaire de YouTube\n"
+                "• Format de vidéo non supporté\n\n"
+                "💡 **Solutions à essayer:**\n"
+                "• Vérifier que la vidéo est publique\n"
+                "• Essayer avec une vidéo différente\n"
+                "• Réessayer dans quelques minutes\n"
+                "• Utiliser un lien direct vers la vidéo\n\n"
+                "📝 Si le problème persiste, contactez l'administrateur."
             )
 
     except Exception as e:
@@ -1192,6 +1243,13 @@ async def main():
                     pass
     except Exception as e:
         print(f"Erreur lors du nettoyage: {e}")
+
+    # Arrêter toutes les instances précédentes du bot
+    try:
+        await bot.delete_webhook(drop_pending_updates=True)
+        print("Webhook supprimé et mises à jour en attente effacées")
+    except Exception as e:
+        print(f"Erreur lors de la suppression du webhook: {e}")
 
     logging.basicConfig(
         level=logging.INFO,
