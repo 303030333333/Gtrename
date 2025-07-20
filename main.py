@@ -1,13 +1,15 @@
 import logging
 import os
 import uuid
+import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.enums import ParseMode
+from aiogram.filters import Command
+from aiogram.types import Message
 import yt_dlp
 from telegraph import Telegraph
-import asyncio
 from aiohttp import web
-
 # -------------------------------
 # Configuration
 # -------------------------------
@@ -21,39 +23,46 @@ WELCOME_IMAGE_URL = "https://graph.org/file/a832e964b6e04f82c1c75-7a8ca2206c069a
 # -------------------------------
 bot = Bot(token=BOT_TOKEN)
 storage = MemoryStorage()
-dp = Dispatcher(storage=storage)
+dp = Dispatcher(storage=
+  # Ne pas échouer silencieusement, indiquer l'erreur
 
-# -------------------------------
-# Fonctions utilitaires
-# -------------------------------
-async def check_subscription(user_id: int) -> bool:
-    """
-    Vérifie si l'utilisateur est abonné aux chaînes obligatoires.
-    """
-    for channel in FORCE_SUB_CHANNELS:
-        try:
-            # Obtenir d'abord l'ID de la chaîne à partir du nom d'utilisateur
-            chat = await bot.get_chat(f"@{channel}")
-            member = await bot.get_chat_member(chat_id=chat.id, user_id=user_id)
-            if member.status in ['left', 'kicked', 'banned']:
-                # Créer un clavier avec un bouton pour rejoindre la chaîne
-                keyboard = types.InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        [types.InlineKeyboardButton(text="Rejoindre la chaîne", url=f"https://t.me/{channel}")]
-                    ]
-                )
-                await bot.send_message(
-                    user_id, 
-                    f"Vous devez vous abonner à @{channel} pour utiliser ce bot.",
-                    reply_markup=keyboard
-                )
-                return False
-        except Exception as e:
-            print("Erreur de vérification d'abonnement:", e)
-            # Ne pas échouer silencieusement, indiquer l'erreur
-            await bot.send_message(user_id, f"Erreur lors de la vérification d'abonnement: {e}")
-            return False
-    return True
+               async def check_subscription(user_id: int, bot) -> bool:
+                    """
+                    Vérifie si l'utilisateur est abonné à toutes les chaînes obligatoires.
+                    Renvoie True si l'utilisateur est abonné à toutes, sinon False.
+                    Envoie un message avec les boutons si l'utilisateur n'est pas abonné.
+                    """
+                    not_subscribed = []
+
+                    for channel in FORCE_SUB_CHANNELS:
+                        try:
+                            chat = await bot.get_chat(f"@{channel}")
+                            member = await bot.get_chat_member(chat.id, user_id)
+
+                            if member.status in [ChatMemberStatus.LEFT, ChatMemberStatus.KICKED, ChatMemberStatus.BANNED]:
+                                not_subscribed.append(channel)
+
+                        except Exception as e:
+                            print(f"Erreur lors de la vérification pour @{channel} :", e)
+                            not_subscribed.append(channel)
+
+                    if not_subscribed:
+                        keyboard = types.InlineKeyboardMarkup(
+                            inline_keyboard=[
+                                [types.InlineKeyboardButton(text=f"🔔 Rejoindre @{chan}", url=f"https://t.me/{chan}")]
+                                for chan in not_subscribed
+                            ] + [
+                                [types.InlineKeyboardButton(text="✅ J’ai rejoint", callback_data="check_sub")]
+                            ]
+                        )
+                        await bot.send_message(
+                            user_id,
+                            "🚫 Pour utiliser ce bot, tu dois d’abord rejoindre ces chaînes 👇",
+                            reply_markup=keyboard
+                        )
+                        return False
+
+                    return True
 
 def download_video(url: str) -> str:
     """
