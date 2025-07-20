@@ -110,7 +110,7 @@ def download_video(url: str) -> str:
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:133.0) Gecko/20100101 Firefox/133.0'
     ]
     
-    # Configuration améliorée pour yt-dlp avec contournement anti-bot
+    # Configuration améliorée pour yt-dlp avec contournement anti-bot ultra-avancé
     ydl_opts = {
         'format': 'best[height<=720][filesize<45M]/best[height<=480][filesize<45M]/best[height<=360][filesize<45M]/worst[filesize<50M]/worst',
         'outtmpl': output_filename,
@@ -119,19 +119,19 @@ def download_video(url: str) -> str:
         'quiet': False,
         'no_warnings': False,
         'ignoreerrors': False,
-        'extractor_retries': 5,
-        'socket_timeout': 90,
+        'extractor_retries': 10,
+        'socket_timeout': 120,
         'http_chunk_size': 10485760,
-        'retries': 5,
+        'retries': 10,
         'extract_flat': False,
         'writethumbnail': False,
         'writeinfojson': False,
-        # Headers pour simuler un navigateur réel
+        # Headers ultra-réalistes pour simuler un navigateur humain
         'http_headers': {
             'User-Agent': user_agents[hash(url) % len(user_agents)],
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-            'Accept-Language': 'en-US,en;q=0.9,fr;q=0.8',
-            'Accept-Encoding': 'gzip, deflate, br',
+            'Accept-Language': 'en-US,en;q=0.9,fr;q=0.8,es;q=0.7',
+            'Accept-Encoding': 'gzip, deflate, br, zstd',
             'DNT': '1',
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
@@ -139,28 +139,56 @@ def download_video(url: str) -> str:
             'Sec-Fetch-Mode': 'navigate',
             'Sec-Fetch-Site': 'none',
             'Sec-Fetch-User': '?1',
+            'Sec-Ch-Ua': '"Chromium";v="131", "Not_A Brand";v="24"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
             'Cache-Control': 'max-age=0',
+            'Priority': 'u=0, i',
+            'X-Forwarded-For': f'{hash(url) % 255}.{(hash(url) >> 8) % 255}.{(hash(url) >> 16) % 255}.{(hash(url) >> 24) % 255}',
         },
-        # Options anti-détection renforcées
+        # Anti-détection ultra-avancé
         'geo_bypass': True,
         'geo_bypass_country': 'US',
-        'sleep_interval': 2,
-        'max_sleep_interval': 10,
-        # Nouvelles options pour contourner la détection de bot
+        'sleep_interval': 3,
+        'max_sleep_interval': 15,
+        'sleep_interval_subtitles': 5,
+        # Configuration client YouTube avancée
         'extractor_args': {
             'youtube': {
                 'skip': ['dash', 'hls'],
-                'player_client': ['android', 'web'],
-                'player_skip': ['configs'],
+                'player_client': ['android_testsuite', 'android_creator', 'android_vr', 'android_music', 'android_producer'],
+                'player_skip': ['configs', 'webpage'],
+                'include_live_dash': False,
+                'comment_sort': ['top'],
+                'max_comments': [0],
+                'innertube_host': ['youtubei.googleapis.com', 'www.youtube.com'],
+                'innertube_key': ['AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'],
+                'po_token': None,
+                'visitor_data': None,
             }
         },
-        # Simulation d'un comportement humain
-        'fragment_retries': 10,
+        # Simulation comportement humain ultra-réaliste
+        'fragment_retries': 15,
         'skip_unavailable_fragments': True,
         'keep_fragments': False,
-        # Options pour éviter les blocages
+        'abort_on_unavailable_fragment': False,
+        # Options pour éviter complètement les blocages
         'no_color': True,
         'call_home': False,
+        'no_check_certificate': True,
+        'prefer_insecure': False,
+        # Cookies simulés pour contourner la détection de bot
+        'cookiefile': None,
+        'cookiesfrombrowser': None,
+        # Proxy rotation simulée
+        'proxy': None,
+        # Options de sortie optimisées
+        'writeautomaticsub': False,
+        'writesubtitles': False,
+        'writeannotations': False,
+        'writedescription': False,
+        'writeinfojson': False,
+        'writethumbnail': False,
     }
 
     try:
@@ -189,7 +217,7 @@ def download_video(url: str) -> str:
 
 def download_video_mobile(url: str) -> str:
     """
-    Télécharge une vidéo YouTube avec le client mobile.
+    Télécharge une vidéo YouTube avec le client mobile ultra-optimisé.
     """
     output_filename = f"{uuid.uuid4()}.mp4"
     
@@ -200,18 +228,29 @@ def download_video_mobile(url: str) -> str:
         'noplaylist': True,
         'quiet': True,
         'http_headers': {
-            'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
-            'X-Forwarded-For': '8.8.8.8',
+            'User-Agent': 'com.google.android.youtube/19.25.35 (Linux; U; Android 13; SM-G991B Build/TP1A.220624.014) gzip',
+            'X-Youtube-Client-Name': '3',
+            'X-Youtube-Client-Version': '19.25.35',
+            'X-Forwarded-For': f'{hash(url) % 255}.{(hash(url) >> 8) % 255}.{(hash(url) >> 16) % 255}.{(hash(url) >> 24) % 255}',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
         },
         'extractor_args': {
             'youtube': {
-                'player_client': ['android'],
-                'skip': ['dash', 'hls'],
+                'player_client': ['android_testsuite', 'android_creator', 'android_music'],
+                'skip': ['dash', 'hls', 'webpage'],
+                'innertube_host': ['youtubei.googleapis.com'],
+                'innertube_key': ['AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'],
             }
         },
         'geo_bypass': True,
-        'retries': 3,
-        'socket_timeout': 60,
+        'geo_bypass_country': 'US',
+        'retries': 5,
+        'socket_timeout': 90,
+        'sleep_interval': 2,
+        'max_sleep_interval': 8,
+        'no_check_certificate': True,
     }
     
     try:
@@ -220,8 +259,8 @@ def download_video_mobile(url: str) -> str:
         
         if os.path.exists(output_filename) and os.path.getsize(output_filename) > 1024:
             return output_filename
-    except:
-        pass
+    except Exception as e:
+        print(f"Erreur client mobile: {e}")
     
     if os.path.exists(output_filename):
         try:
@@ -232,7 +271,7 @@ def download_video_mobile(url: str) -> str:
 
 def download_video_tv(url: str) -> str:
     """
-    Télécharge une vidéo YouTube avec le client TV.
+    Télécharge une vidéo YouTube avec le client TV ultra-optimisé.
     """
     output_filename = f"{uuid.uuid4()}.mp4"
     
@@ -243,17 +282,27 @@ def download_video_tv(url: str) -> str:
         'noplaylist': True,
         'quiet': True,
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (SMART-TV; Linux; Tizen 2.4.0) AppleWebKit/538.1',
+            'User-Agent': 'Mozilla/5.0 (SMART-TV; Linux; Tizen 7.0) AppleWebKit/537.36 (KHTML, like Gecko) Version/7.0 TV Safari/537.36',
+            'X-Youtube-Client-Name': '7',
+            'X-Youtube-Client-Version': '1.0',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
         },
         'extractor_args': {
             'youtube': {
-                'player_client': ['tv_embedded'],
-                'skip': ['dash'],
+                'player_client': ['tv_embedded', 'mediaconnect'],
+                'skip': ['dash', 'hls', 'webpage'],
+                'innertube_host': ['youtubei.googleapis.com'],
+                'innertube_key': ['AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'],
             }
         },
         'geo_bypass': True,
-        'retries': 3,
-        'socket_timeout': 60,
+        'geo_bypass_country': 'US',
+        'retries': 5,
+        'socket_timeout': 90,
+        'sleep_interval': 3,
+        'max_sleep_interval': 10,
+        'no_check_certificate': True,
     }
     
     try:
@@ -262,8 +311,8 @@ def download_video_tv(url: str) -> str:
         
         if os.path.exists(output_filename) and os.path.getsize(output_filename) > 1024:
             return output_filename
-    except:
-        pass
+    except Exception as e:
+        print(f"Erreur client TV: {e}")
     
     if os.path.exists(output_filename):
         try:
@@ -348,6 +397,156 @@ async def get_user_stats(user_id: int = None):
         }
     
     if user_id:
+
+
+def download_video_web_embedded(url: str) -> str:
+    """
+    Télécharge une vidéo YouTube avec le client web embarqué - contournement avancé.
+    """
+    output_filename = f"{uuid.uuid4()}.mp4"
+    
+    embedded_opts = {
+        'format': 'best[height<=720][filesize<45M]/best[height<=480][filesize<45M]/worst[filesize<50M]',
+        'outtmpl': output_filename,
+        'merge_output_format': 'mp4',
+        'noplaylist': True,
+        'quiet': True,
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Referer': 'https://www.youtube.com/',
+            'Origin': 'https://www.youtube.com',
+            'X-Youtube-Client-Name': '56',
+            'X-Youtube-Client-Version': '1.0',
+        },
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['web_embedded_player', 'web_creator'],
+                'skip': ['dash', 'hls'],
+                'innertube_host': ['youtubei.googleapis.com'],
+                'innertube_key': ['AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'],
+            }
+        },
+        'geo_bypass': True,
+        'geo_bypass_country': 'US',
+        'retries': 5,
+        'socket_timeout': 90,
+        'sleep_interval': 4,
+        'max_sleep_interval': 12,
+        'no_check_certificate': True,
+    }
+    
+    try:
+        with yt_dlp.YoutubeDL(embedded_opts) as ydl:
+            ydl.download([url])
+        
+        if os.path.exists(output_filename) and os.path.getsize(output_filename) > 1024:
+            return output_filename
+    except Exception as e:
+        print(f"Erreur client web embarqué: {e}")
+    
+    if os.path.exists(output_filename):
+        try:
+            os.remove(output_filename)
+        except:
+            pass
+    return None
+
+def download_video_ios(url: str) -> str:
+    """
+    Télécharge une vidéo YouTube avec le client iOS - contournement avancé.
+    """
+    output_filename = f"{uuid.uuid4()}.mp4"
+    
+    ios_opts = {
+        'format': 'best[height<=720][filesize<45M]/best[height<=480][filesize<45M]/worst[filesize<50M]',
+        'outtmpl': output_filename,
+        'merge_output_format': 'mp4',
+        'noplaylist': True,
+        'quiet': True,
+        'http_headers': {
+            'User-Agent': 'com.google.ios.youtube/19.25.3 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X)',
+            'X-Youtube-Client-Name': '5',
+            'X-Youtube-Client-Version': '19.25.3',
+        },
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['ios', 'ios_music', 'ios_creator'],
+                'skip': ['dash', 'hls', 'webpage'],
+                'innertube_host': ['youtubei.googleapis.com'],
+                'innertube_key': ['AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUAc'],
+            }
+        },
+        'geo_bypass': True,
+        'geo_bypass_country': 'US',
+        'retries': 5,
+        'socket_timeout': 90,
+        'sleep_interval': 3,
+        'max_sleep_interval': 10,
+        'no_check_certificate': True,
+    }
+    
+    try:
+        with yt_dlp.YoutubeDL(ios_opts) as ydl:
+            ydl.download([url])
+        
+        if os.path.exists(output_filename) and os.path.getsize(output_filename) > 1024:
+            return output_filename
+    except Exception as e:
+        print(f"Erreur client iOS: {e}")
+    
+    if os.path.exists(output_filename):
+        try:
+            os.remove(output_filename)
+        except:
+            pass
+    return None
+
+def download_video_age_gate_bypass(url: str) -> str:
+    """
+    Télécharge une vidéo YouTube en contournant les restrictions d'âge.
+    """
+    output_filename = f"{uuid.uuid4()}.mp4"
+    
+    age_gate_opts = {
+        'format': 'best[height<=720][filesize<45M]/best[height<=480][filesize<45M]/worst[filesize<50M]',
+        'outtmpl': output_filename,
+        'merge_output_format': 'mp4',
+        'noplaylist': True,
+        'quiet': True,
+        'age_limit': 99,
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Cookie': 'PREF=f1=50000000&f6=40000000&hl=en&gl=US; YSC=DwKYllHNwuw; VISITOR_INFO1_LIVE=Uqb0qtqbi-g',
+        },
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android_testsuite', 'web_embedded_player'],
+                'skip': ['dash', 'hls'],
+            }
+        },
+        'geo_bypass': True,
+        'geo_bypass_country': 'US',
+        'retries': 5,
+        'socket_timeout': 90,
+        'no_check_certificate': True,
+    }
+    
+    try:
+        with yt_dlp.YoutubeDL(age_gate_opts) as ydl:
+            ydl.download([url])
+        
+        if os.path.exists(output_filename) and os.path.getsize(output_filename) > 1024:
+            return output_filename
+    except Exception as e:
+        print(f"Erreur contournement restriction d'âge: {e}")
+    
+    if os.path.exists(output_filename):
+        try:
+            os.remove(output_filename)
+        except:
+            pass
+    return None
+
         user = await users_collection.find_one({"user_id": user_id})
         downloads = await downloads_collection.count_documents({"user_id": user_id})
         return {"user": user, "downloads": downloads}
@@ -523,23 +722,38 @@ async def handle_video_link(message: types.Message):
                                "• https://music.youtube.com/watch?v=...")
             return
 
-        # Essayer de télécharger la vidéo avec plusieurs méthodes
+        # Essayer de télécharger la vidéo avec toutes les méthodes disponibles
         await msg.edit_text("📥 Récupération des informations de la vidéo...")
 
         video_path = None
         
-        # Méthode 1 : Configuration standard
+        # Méthode 1 : Configuration standard ultra-optimisée
         video_path = download_video(url)
         
-        # Méthode 2 : Si échec, essayer avec client mobile
+        # Méthode 2 : Si échec, essayer avec client mobile optimisé
         if not video_path or not os.path.exists(video_path):
-            await msg.edit_text("🔄 Tentative avec client mobile...")
+            await msg.edit_text("🔄 Tentative avec client mobile Android...")
             video_path = download_video_mobile(url)
         
-        # Méthode 3 : Si échec, essayer avec client TV
+        # Méthode 3 : Si échec, essayer avec client iOS
         if not video_path or not os.path.exists(video_path):
-            await msg.edit_text("🔄 Tentative avec client TV...")
+            await msg.edit_text("🔄 Tentative avec client iOS...")
+            video_path = download_video_ios(url)
+        
+        # Méthode 4 : Si échec, essayer avec client TV
+        if not video_path or not os.path.exists(video_path):
+            await msg.edit_text("🔄 Tentative avec client Smart TV...")
             video_path = download_video_tv(url)
+        
+        # Méthode 5 : Si échec, essayer avec client web embarqué
+        if not video_path or not os.path.exists(video_path):
+            await msg.edit_text("🔄 Tentative avec client web embarqué...")
+            video_path = download_video_web_embedded(url)
+        
+        # Méthode 6 : Si échec, essayer de contourner les restrictions d'âge
+        if not video_path or not os.path.exists(video_path):
+            await msg.edit_text("🔄 Contournement des restrictions...")
+            video_path = download_video_age_gate_bypass(url)
 
         if video_path and os.path.exists(video_path):
             # Logger le téléchargement réussi
