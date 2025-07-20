@@ -26,43 +26,48 @@ storage = MemoryStorage()
 dp = Dispatcher(storage=MemoryStorage())
   # Ne pas échouer silencieusement, indiquer l'erreur
 
-               async def check_subscription(user_id: int, bot) -> bool:
-                    """
-                    Vérifie si l'utilisateur est abonné à toutes les chaînes obligatoires.
-                    Renvoie True si l'utilisateur est abonné à toutes, sinon False.
-                    Envoie un message avec les boutons si l'utilisateur n'est pas abonné.
-                    """
-                    not_subscribed = []
+# Fonction de vérification d’abonnement
+async def check_subscription(user_id: int, bot) -> bool:
+    """
+    Vérifie si l'utilisateur est abonné à toutes les chaînes obligatoires.
+    Renvoie True si l'utilisateur est abonné à toutes, sinon False.
+    Envoie un message avec les boutons si l'utilisateur n'est pas abonné.
+    """
+    not_subscribed = []
 
-                    for channel in FORCE_SUB_CHANNELS:
-                        try:
-                            chat = await bot.get_chat(f"@{channel}")
-                            member = await bot.get_chat_member(chat.id, user_id)
+    for channel in FORCE_SUB_CHANNELS:
+        try:
+            chat = await bot.get_chat(f"@{channel}")
+            member = await bot.get_chat_member(chat.id, user_id)
 
-                            if member.status in [ChatMemberStatus.LEFT, ChatMemberStatus.KICKED, ChatMemberStatus.BANNED]:
-                                not_subscribed.append(channel)
+            if member.status in [
+                ChatMemberStatus.LEFT,
+                ChatMemberStatus.KICKED,
+                ChatMemberStatus.BANNED
+            ]:
+                not_subscribed.append(channel)
 
-                        except Exception as e:
-                            print(f"Erreur lors de la vérification pour @{channel} :", e)
-                            not_subscribed.append(channel)
+        except Exception as e:
+            print(f"Erreur lors de la vérification pour @{channel} :", e)
+            not_subscribed.append(channel)
 
-                    if not_subscribed:
-                        keyboard = types.InlineKeyboardMarkup(
-                            inline_keyboard=[
-                                [types.InlineKeyboardButton(text=f"🔔 Rejoindre @{chan}", url=f"https://t.me/{chan}")]
-                                for chan in not_subscribed
-                            ] + [
-                                [types.InlineKeyboardButton(text="✅ J’ai rejoint", callback_data="check_sub")]
-                            ]
-                        )
-                        await bot.send_message(
-                            user_id,
-                            "🚫 Pour utiliser ce bot, tu dois d’abord rejoindre ces chaînes 👇",
-                            reply_markup=keyboard
-                        )
-                        return False
+    if not_subscribed:
+        keyboard = types.InlineKeyboardMarkup(
+            inline_keyboard=[
+                [types.InlineKeyboardButton(text=f"🔔 Rejoindre @{chan}", url=f"https://t.me/{chan}")]
+                for chan in not_subscribed
+            ] + [
+                [types.InlineKeyboardButton(text="✅ J’ai rejoint", callback_data="check_sub")]
+            ]
+        )
+        await bot.send_message(
+            user_id,
+            "🚫 Pour utiliser ce bot, tu dois d’abord rejoindre ces chaînes 👇",
+            reply_markup=keyboard
+        )
+        return False
 
-                    return True
+    return True
 
 def download_video(url: str) -> str:
     """
