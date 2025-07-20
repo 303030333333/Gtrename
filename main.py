@@ -21,7 +21,7 @@ FORCE_SUB_CHANNELS = []  # Pas d'abonnement forcé
 WELCOME_IMAGE_URL = "https://graph.org/file/a832e964b6e04f82c1c75-7a8ca2206c069a333a.jpg"  # URL de ton image de bienvenue
 
 # Configuration MongoDB
-MONGODB_URI = "mongodb+srv://altoftoure: ECkxCulae59X4zNd@cluster0.vlpyz.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"  # Remplace par ton URI MongoDB
+MONGODB_URI = "mongodb+srv://altoftoure:ECkxCulae59X4zNd@cluster0.vlpyz.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"  # Remplace par ton URI MongoDB
 DATABASE_NAME = "altoftoure"  # Nom de ta base de données
 
 # Configuration API Telegram (pour pyrogram si nécessaire)
