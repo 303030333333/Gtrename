@@ -100,17 +100,19 @@ def download_video(url: str) -> str:
     """
     output_filename = f"{uuid.uuid4()}.mp4"
     
-    # Configuration simple pour yt-dlp
+    # Configuration améliorée pour yt-dlp
     ydl_opts = {
-        'format': 'best[height<=720][filesize<50M]/best[height<=480][filesize<50M]/worst[filesize<50M]',
+        'format': 'best[height<=720][filesize<45M]/best[height<=480][filesize<45M]/best[filesize<45M]/worst',
         'outtmpl': output_filename,
         'merge_output_format': 'mp4',
         'noplaylist': True,
-        'quiet': True,
-        'no_warnings': True,
-        'ignoreerrors': True,
-        'extractor_retries': 2,
-        'socket_timeout': 30,
+        'quiet': False,  # Activer les logs pour débugger
+        'no_warnings': False,
+        'ignoreerrors': False,
+        'extractor_retries': 3,
+        'socket_timeout': 60,
+        'http_chunk_size': 10485760,  # 10MB chunks
+        'retries': 3,
     }
 
     try:
@@ -295,17 +297,17 @@ async def cmd_start(message: types.Message):
     
     # Essayer d'envoyer avec l'image
     try:
-        # Utiliser une image de test simple
+        # Utiliser une image YouTube fonctionnelle
         await bot.send_photo(
             chat_id=message.chat.id,
-            photo="https://i.imgur.com/dGWtKvL.jpg",  # Image YouTube générique
+            photo="https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/YouTube_full-color_icon_%282017%29.svg/2560px-YouTube_full-color_icon_%282017%29.svg.png",
             caption=welcome_text,
             reply_markup=keyboard,
             parse_mode="Markdown"
         )
     except Exception as e:
         print(f"Erreur avec l'image: {e}")
-        # Envoyer sans image
+        # Envoyer sans image en cas d'erreur
         await message.answer(
             welcome_text,
             reply_markup=keyboard,
@@ -378,12 +380,14 @@ async def handle_video_link(message: types.Message):
                 url = 'https://' + url
         
         # Vérifier que c'est bien un lien YouTube valide
-        if not any(domain in url.lower() for domain in ['youtube.com', 'youtu.be', 'm.youtube.com']):
+        youtube_domains = ['youtube.com', 'youtu.be', 'm.youtube.com', 'www.youtube.com', 'music.youtube.com']
+        if not any(domain in url.lower() for domain in youtube_domains):
             await msg.edit_text("❌ Veuillez fournir un lien YouTube valide.\n\n"
                                "Formats acceptés:\n"
                                "• https://www.youtube.com/watch?v=...\n"
                                "• https://youtu.be/...\n"
-                               "• https://m.youtube.com/watch?v=...")
+                               "• https://m.youtube.com/watch?v=...\n"
+                               "• https://music.youtube.com/watch?v=...")
             return
 
         # Essayer de télécharger la vidéo
@@ -415,13 +419,21 @@ async def handle_video_link(message: types.Message):
                     )
                     await msg.delete()  # Supprimer le message de progression
                 except Exception as send_error:
-                    await msg.edit_text(f"❌ Erreur lors de l'envoi: {str(send_error)[:150]}")
+                    error_msg = str(send_error)
+                    if "Request Entity Too Large" in error_msg or "413" in error_msg:
+                        await msg.edit_text("❌ Fichier trop volumineux pour Telegram (limite 50MB)")
+                    elif "Bad Request" in error_msg:
+                        await msg.edit_text("❌ Format de fichier non supporté par Telegram")
+                    else:
+                        await msg.edit_text(f"❌ Erreur lors de l'envoi: {error_msg[:150]}")
                 finally:
                     # Nettoyer le fichier dans tous les cas
                     try:
-                        os.remove(video_path)
-                    except:
-                        pass
+                        if os.path.exists(video_path):
+                            os.remove(video_path)
+                            print(f"Fichier nettoyé: {video_path}")
+                    except Exception as cleanup_error:
+                        print(f"Erreur nettoyage: {cleanup_error}")
         else:
             # Logger l'échec du téléchargement
             await log_download(user_id, url, success=False, error_msg="Impossible de télécharger la vidéo")
