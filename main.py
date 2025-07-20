@@ -10,6 +10,8 @@ from aiogram.types import Message
 import yt_dlp
 from telegraph import Telegraph
 from aiohttp import web
+from motor.motor_asyncio import AsyncIOMotorClient
+from datetime import datetime
 # -------------------------------
 # Configuration
 # -------------------------------
@@ -18,13 +20,29 @@ ADMIN_IDS = [5116530698]  # Remplace par tes IDs admin
 FORCE_SUB_CHANNELS = []  # Pas d'abonnement forcé
 WELCOME_IMAGE_URL = "https://graph.org/file/a832e964b6e04f82c1c75-7a8ca2206c069a333a.jpg"  # URL de ton image de bienvenue
 
+# Configuration MongoDB
+MONGODB_URI = "mongodb+srv://altoftoure: ECkxCulae59X4zNd@cluster0.vlpyz.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"  # Remplace par ton URI MongoDB
+DATABASE_NAME = "altoftoure"  # Nom de ta base de données
+
+# Configuration API Telegram (pour pyrogram si nécessaire)
+API_ID = 24777493  # Remplace par ton API ID depuis my.telegram.org
+API_HASH = "bf5a6381d07f045af4faeb46d7de36e5"  # Remplace par ton API Hash depuis my.telegram.org
+
 # -------------------------------
-# Initialisation du bot
+# Initialisation du bot et MongoDB
 # -------------------------------
 bot = Bot(token=BOT_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=MemoryStorage())
-  # Ne pas échouer silencieusement, indiquer l'erreur
+
+# Initialisation MongoDB
+mongo_client = AsyncIOMotorClient(MONGODB_URI)
+db = mongo_client[DATABASE_NAME]
+
+# Collections MongoDB
+users_collection = db.users
+downloads_collection = db.downloads
+admin_logs_collection = db.admin_logs
 
 # Fonction de vérification d’abonnement
 async def check_subscription(user_id: int, bot) -> bool:
@@ -74,6 +92,7 @@ def download_video(url: str) -> str:
     """
     Télécharge une vidéo YouTube et renvoie le chemin du fichier téléchargé.
     """
+    import random
 
     # Extraction de l'ID de la vidéo à partir de différents formats d'URL
     video_id = None
@@ -94,78 +113,132 @@ def download_video(url: str) -> str:
 
     output_filename = f"{uuid.uuid4()}.mp4"
 
-    # Configuration de base pour yt-dlp
-    ydl_opts = {
-        # Format progressif pour éviter la nécessité de fusion audio/vidéo
-        'format': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best',
+    # Liste d'User-Agents pour éviter la détection
+    user_agents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0'
+    ]
+
+    # Configuration de base pour yt-dlp avec anti-détection
+    base_opts = {
         'outtmpl': output_filename,
         'merge_output_format': 'mp4',
         'noplaylist': True,
-        'quiet': False,
-        'verbose': True,
-        'no_warnings': False,
+        'quiet': True,
+        'no_warnings': True,
         'ignoreerrors': True,
         'geo_bypass': True,
-        'socket_timeout': 30,
-        'nocheckcertificate': True,  # Ignorer les erreurs de certificat
-        'prefer_insecure': True,     # Préférer les connexions non-sécurisées si nécessaire
-        'extractor_retries': 5,      # Nombre de tentatives pour l'extraction
-        'fragment_retries': 10,      # Nombre de tentatives pour le téléchargement de fragments
-        'skip_unavailable_fragments': True,  # Ignorer les fragments non disponibles
-        # Tenter de forcer IPv4 pour éviter les restrictions
-        'source_address': '0.0.0.0', 
+        'socket_timeout': 45,
+        'extractor_retries': 3,
+        'fragment_retries': 5,
+        'skip_unavailable_fragments': True,
+        'http_headers': {
+            'User-Agent': random.choice(user_agents),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+        },
+        # Éviter les problèmes de bot detection
+        'sleep_interval': 1,
+        'max_sleep_interval': 3,
+        'sleep_interval_subtitles': 0,
     }
 
-    for attempt in range(3):  # Faire 3 tentatives avec différentes configurations
+    # Différentes stratégies de téléchargement
+    strategies = [
+        # Stratégie 1: Format simple avec client web
+        {
+            **base_opts,
+            'format': 'best[height<=720][filesize<50M]/best[height<=480][filesize<50M]/best[filesize<50M]',
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['web'],
+                    'skip': ['dash', 'hls']
+                }
+            }
+        },
+        # Stratégie 2: Format mobile
+        {
+            **base_opts,
+            'format': 'best[height<=480][filesize<50M]/worst[filesize<50M]',
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['mweb', 'web']
+                }
+            }
+        },
+        # Stratégie 3: Format très basique
+        {
+            **base_opts,
+            'format': '18/best[height<=360][filesize<50M]/worst',
+            'prefer_free_formats': True,
+        },
+        # Stratégie 4: Avec proxy interne et format minimal
+        {
+            **base_opts,
+            'format': 'worst[ext=mp4]/worst',
+            'proxy': '',
+            'source_address': '0.0.0.0',
+        }
+    ]
+
+    for i, ydl_opts in enumerate(strategies, 1):
         try:
-            print(f"Tentative {attempt+1} de téléchargement depuis: {clean_url}")
-
-            # Ajuster les options en fonction de la tentative
-            if attempt == 1:
-                # Deuxième tentative: essayer un format plus bas
-                ydl_opts['format'] = 'best[height<=480]/best'
-            elif attempt == 2:
-                # Troisième tentative: essayer le format le plus simple
-                ydl_opts['format'] = 'best'
-
+            print(f"Tentative {i} avec stratégie {i}")
+            
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                print(f"Téléchargement avec options: {ydl_opts['format']}")
-                # Télécharger directement sans vérification préalable des infos
+                # Ajouter un délai aléatoire pour éviter la détection
+                import time
+                time.sleep(random.uniform(1, 3))
+                
                 ydl.download([clean_url])
 
-                # Vérifier si le fichier existe
-                if os.path.exists(output_filename) and os.path.getsize(output_filename) > 0:
-                    print(f"Téléchargement réussi: {output_filename}")
+                # Vérifier si le fichier existe et n'est pas vide
+                if os.path.exists(output_filename) and os.path.getsize(output_filename) > 1024:  # Au moins 1KB
+                    print(f"Téléchargement réussi avec la stratégie {i}: {output_filename}")
                     return output_filename
                 else:
-                    print(f"Le fichier {output_filename} n'existe pas ou est vide après la tentative {attempt+1}")
+                    print(f"Stratégie {i} n'a pas produit de fichier valide")
+                    if os.path.exists(output_filename):
+                        os.remove(output_filename)
 
         except Exception as e:
-            print(f"Erreur lors de la tentative {attempt+1}: {e}")
-            # Continuer avec la prochaine tentative
+            print(f"Erreur avec la stratégie {i}: {str(e)[:200]}")
+            if os.path.exists(output_filename):
+                try:
+                    os.remove(output_filename)
+                except:
+                    pass
+            continue
 
-    # Une dernière tentative avec YouTube-DL directement si toutes les autres ont échoué
+    # Dernière tentative avec yt-dlp basique
     try:
-        print("Dernière tentative avec une configuration alternative...")
-        ydl_opts = {
-            'format': 'best',
+        print("Tentative finale avec configuration minimale...")
+        final_opts = {
+            'format': 'worst[ext=mp4]/worst',
             'outtmpl': output_filename,
-            'noplaylist': True,
-            'quiet': False,
-            'verbose': True,
-            'no_warnings': False,
+            'quiet': True,
+            'no_warnings': True,
             'ignoreerrors': True,
-            'geo_bypass': True,
+            'extractor_args': {'youtube': {'skip': ['dash']}},
         }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
-            if os.path.exists(output_filename) and os.path.getsize(output_filename) > 0:
-                print(f"Téléchargement réussi avec la configuration alternative: {output_filename}")
+        
+        with yt_dlp.YoutubeDL(final_opts) as ydl:
+            ydl.download([clean_url])
+            
+            if os.path.exists(output_filename) and os.path.getsize(output_filename) > 1024:
+                print(f"Téléchargement réussi avec la configuration finale: {output_filename}")
                 return output_filename
+                
     except Exception as e:
-        print(f"Échec de la dernière tentative: {e}")
+        print(f"Échec de la tentative finale: {e}")
 
-    # Si on arrive ici, toutes les tentatives ont échoué
     print("Toutes les tentatives de téléchargement ont échoué.")
     return None
 
@@ -193,14 +266,95 @@ def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
 
 # -------------------------------
+# Fonctions MongoDB
+# -------------------------------
+async def save_user(user_id: int, username: str = None, first_name: str = None):
+    """Sauvegarder les informations utilisateur dans MongoDB"""
+    user_data = {
+        "user_id": user_id,
+        "username": username,
+        "first_name": first_name,
+        "joined_date": datetime.now(),
+        "last_activity": datetime.now(),
+        "is_banned": False,
+        "download_count": 0
+    }
+    await users_collection.update_one(
+        {"user_id": user_id},
+        {"$set": user_data},
+        upsert=True
+    )
+
+async def log_download(user_id: int, url: str, success: bool = True, error_msg: str = None):
+    """Enregistrer un téléchargement dans MongoDB"""
+    download_data = {
+        "user_id": user_id,
+        "url": url,
+        "timestamp": datetime.now(),
+        "success": success,
+        "error_message": error_msg
+    }
+    await downloads_collection.insert_one(download_data)
+    
+    # Incrémenter le compteur de téléchargements de l'utilisateur
+    if success:
+        await users_collection.update_one(
+            {"user_id": user_id},
+            {"$inc": {"download_count": 1}}
+        )
+
+async def get_user_stats(user_id: int = None):
+    """Obtenir les statistiques des utilisateurs"""
+    if user_id:
+        user = await users_collection.find_one({"user_id": user_id})
+        downloads = await downloads_collection.count_documents({"user_id": user_id})
+        return {"user": user, "downloads": downloads}
+    else:
+        total_users = await users_collection.count_documents({})
+        total_downloads = await downloads_collection.count_documents({})
+        banned_users_count = await users_collection.count_documents({"is_banned": True})
+        return {
+            "total_users": total_users,
+            "total_downloads": total_downloads,
+            "banned_users": banned_users_count
+        }
+
+async def ban_user_db(user_id: int, banned_by: int):
+    """Bannir un utilisateur dans MongoDB"""
+    await users_collection.update_one(
+        {"user_id": user_id},
+        {"$set": {"is_banned": True, "banned_date": datetime.now(), "banned_by": banned_by}}
+    )
+
+async def unban_user_db(user_id: int, unbanned_by: int):
+    """Débannir un utilisateur dans MongoDB"""
+    await users_collection.update_one(
+        {"user_id": user_id},
+        {"$set": {"is_banned": False, "unbanned_date": datetime.now(), "unbanned_by": unbanned_by}}
+    )
+
+async def is_user_banned(user_id: int) -> bool:
+    """Vérifier si un utilisateur est banni"""
+    user = await users_collection.find_one({"user_id": user_id})
+    return user.get("is_banned", False) if user else False
+
+# -------------------------------
 # Handlers du bot
 # -------------------------------
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, bot: Bot):
-    # Ajouter l'utilisateur à la liste des abonnés s'il n'est pas banni
+    # Sauvegarder l'utilisateur dans MongoDB
     user_id = message.from_user.id
-    if user_id not in banned_users:
-        subscribers.add(user_id)
+    username = message.from_user.username
+    first_name = message.from_user.first_name
+    
+    # Vérifier si l'utilisateur est banni
+    if await is_user_banned(user_id):
+        await message.reply("❌ Vous êtes banni de ce bot.")
+        return
+    
+    await save_user(user_id, username, first_name)
+    subscribers.add(user_id)
 
     # Création du clavier inline
     keyboard = types.InlineKeyboardMarkup(
@@ -253,7 +407,7 @@ async def process_admin_panel(callback_query: types.CallbackQuery):
             ]
         ]
     )
-    
+
     await bot.send_message(
         callback_query.from_user.id, 
         "🛠 **Panneau Admin:**\n\nChoisissez une action :", 
@@ -264,37 +418,84 @@ async def process_admin_panel(callback_query: types.CallbackQuery):
 
 @dp.message(lambda message: message.text and (message.text.startswith("http") or "youtu" in message.text))
 async def handle_video_link(message: types.Message):
-    msg = await message.reply("Téléchargement en cours... Cela peut prendre quelques instants.")
+    # Vérifier si l'utilisateur est banni
+    user_id = message.from_user.id
+    if await is_user_banned(user_id):
+        await message.reply("❌ Vous êtes banni de ce bot.")
+        return
+
+    msg = await message.reply("🔄 Téléchargement en cours... Cela peut prendre quelques instants.")
 
     # Extraire l'URL YouTube
     url = message.text.strip()
 
     try:
+        # Vérifier que c'est bien un lien YouTube valide
+        if not any(domain in url.lower() for domain in ['youtube.com', 'youtu.be', 'm.youtube.com']):
+            await msg.edit_text("❌ Veuillez fournir un lien YouTube valide.")
+            return
+
         # Essayer de télécharger la vidéo
-        await message.reply("Récupération des informations de la vidéo...")
+        await msg.edit_text("📥 Récupération des informations de la vidéo...")
+        
         video_path = download_video(url)
 
         if video_path and os.path.exists(video_path):
+            # Logger le téléchargement réussi
+            await log_download(user_id, url, success=True)
             # Vérifier la taille du fichier
             file_size = os.path.getsize(video_path) / (1024 * 1024)  # Taille en MB
 
             if file_size > 49:  # Telegram limite à 50MB
-                await message.reply(f"⚠️ La vidéo est trop grande ({file_size:.1f}MB). Telegram limite les fichiers à 50MB.")
+                await msg.edit_text(f"⚠️ La vidéo est trop grande ({file_size:.1f}MB). Telegram limite les fichiers à 50MB.")
+                os.remove(video_path)
+            elif file_size < 0.01:  # Fichier trop petit (moins de 10KB)
+                await msg.edit_text("❌ Le fichier téléchargé semble corrompu ou trop petit.")
                 os.remove(video_path)
             else:
-                await message.reply(f"Envoi en cours... Taille: {file_size:.1f}MB")
-                await bot.send_video(
-                    message.chat.id, 
-                    video=types.FSInputFile(video_path),
-                    caption="Voici votre vidéo! 🎬"
-                )
-                await msg.delete()  # Supprimer le message "Téléchargement en cours"
-                os.remove(video_path)
+                await msg.edit_text(f"📤 Envoi en cours... Taille: {file_size:.1f}MB")
+                
+                try:
+                    await bot.send_video(
+                        message.chat.id, 
+                        video=types.FSInputFile(video_path),
+                        caption="Voici votre vidéo! 🎬",
+                        supports_streaming=True
+                    )
+                    await msg.delete()  # Supprimer le message de progression
+                except Exception as send_error:
+                    await msg.edit_text(f"❌ Erreur lors de l'envoi: {str(send_error)[:150]}")
+                finally:
+                    # Nettoyer le fichier dans tous les cas
+                    try:
+                        os.remove(video_path)
+                    except:
+                        pass
         else:
-            await message.reply("⚠️ Impossible de télécharger cette vidéo. Vérifiez que l'URL est valide et que la vidéo est disponible.")
+            # Logger l'échec du téléchargement
+            await log_download(user_id, url, success=False, error_msg="Impossible de télécharger la vidéo")
+            await msg.edit_text(
+                "❌ Impossible de télécharger cette vidéo.\n\n"
+                "Causes possibles:\n"
+                "• La vidéo est privée ou supprimée\n"
+                "• Restrictions géographiques\n"
+                "• Vidéo protégée par le créateur\n"
+                "• Problème temporaire de YouTube\n\n"
+                "Veuillez essayer avec une autre vidéo."
+            )
+            
     except Exception as e:
-        await message.reply(f"❌ Erreur: {str(e)[:200]}")
-        print(f"Exception complète: {e}")
+        error_msg = str(e)
+        if "Sign in to confirm" in error_msg or "bot" in error_msg.lower():
+            await msg.edit_text(
+                "🤖 YouTube a détecté une activité automatisée.\n"
+                "Ceci est temporaire, veuillez réessayer dans quelques minutes.\n\n"
+                "💡 Astuce: Essayez avec une vidéo différente."
+            )
+        else:
+            await msg.edit_text(f"❌ Erreur: {error_msg[:200]}...")
+        
+        print(f"Exception complète dans handle_video_link: {e}")
 
 @dp.message(lambda message: message.text and message.text.startswith("/admin"))
 async def cmd_admin(message: types.Message):
@@ -314,7 +515,7 @@ async def cmd_admin(message: types.Message):
 
 **Utilisation :** Tapez directement la commande avec les paramètres requis.
 """
-    
+
     await message.answer(admin_help, parse_mode="Markdown")
 
 # Classes pour les états de l'admin
@@ -386,11 +587,13 @@ async def process_admin_callbacks(callback_query: types.CallbackQuery, state: FS
         await bot.send_message(callback_query.from_user.id, "Envoyez l'ID de l'utilisateur à bannir.")
 
     elif data == "admin_stats":
+        db_stats = await get_user_stats()
         stats = (
             f"📊 **Statistiques du bot:**\n\n"
-            f"👥 Nombre d'utilisateurs: {len(subscribers)}\n"
+            f"👥 Nombre d'utilisateurs: {db_stats['total_users']}\n"
+            f"📥 Total téléchargements: {db_stats['total_downloads']}\n"
             f"👮‍♂️ Nombre d'admins: {len(admin_ids)}\n"
-            f"🚫 Nombre de bannis: {len(banned_users)}"
+            f"🚫 Nombre de bannis: {db_stats['banned_users']}"
         )
         await bot.send_message(callback_query.from_user.id, stats, parse_mode="Markdown")
 
@@ -408,7 +611,7 @@ async def process_admin_callbacks(callback_query: types.CallbackQuery, state: FS
     elif data == "admin_storage":
         files = []
         total_size = 0
-        
+
         for f in os.listdir('.'):
             try:
                 size = os.path.getsize(f)
@@ -419,11 +622,11 @@ async def process_admin_callbacks(callback_query: types.CallbackQuery, state: FS
                     files.append(f"📄 {f} ({size/1024:.1f}KB)")
             except:
                 files.append(f"❓ {f}")
-        
+
         file_list = "\n".join(files[:20])  # Limiter à 20 fichiers
         if len(files) > 20:
             file_list += f"\n... et {len(files)-20} autres fichiers"
-        
+
         storage_info = f"📁 **Stockage:**\n\n{file_list}\n\n**Taille totale:** {total_size/1024/1024:.1f}MB"
         await bot.send_message(callback_query.from_user.id, storage_info, parse_mode="Markdown")
 
@@ -684,7 +887,7 @@ async def cmd_storage(message: types.Message):
 
     files = []
     total_size = 0
-    
+
     for f in os.listdir('.'):
         try:
             size = os.path.getsize(f)
@@ -695,11 +898,11 @@ async def cmd_storage(message: types.Message):
                 files.append(f"📄 {f} ({size/1024:.1f}KB)")
         except:
             files.append(f"❓ {f}")
-    
+
     file_list = "\n".join(files[:20])  # Limiter à 20 fichiers
     if len(files) > 20:
         file_list += f"\n... et {len(files)-20} autres fichiers"
-    
+
     storage_info = f"📁 **Stockage:**\n\n{file_list}\n\n**Taille totale:** {total_size/1024/1024:.1f}MB"
     await message.reply(storage_info, parse_mode="Markdown")
 
@@ -983,7 +1186,7 @@ async def back_to_admin_panel(callback_query: types.CallbackQuery):
 async def handle_check_subscription(callback_query: types.CallbackQuery):
     """Gestionnaire pour le callback de vérification d'abonnement"""
     user_id = callback_query.from_user.id
-    
+
     if await check_subscription(user_id, bot):
         await callback_query.answer("✅ Merci ! Vous pouvez maintenant utiliser le bot.")
 
