@@ -341,11 +341,14 @@ async def is_user_banned(user_id: int) -> bool:
 # -------------------------------
 # Handlers du bot
 # -------------------------------
+
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    print("Commande /start reçue")  # Log pour débogage
-    await message.reply("Bienvenue sur notre bot de téléchargement de vidéos YouTube ! Envoyez-moi un lien YouTube.")
-    # Sauvegarder l'utilisateur dans MongoDB
+    user_id = message.from_user.id
+    username = message.from_user.username
+    first_name = message.from_user.first_name
+
+ # Sauvegarder l'utilisateur dans MongoDB
     user_id = message.from_user.id
     username = message.from_user.username
     first_name = message.from_user.first_name
