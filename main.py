@@ -4,7 +4,7 @@ import uuid
 import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.enums import ParseMode
+from aiogram.enums import ParseMode, ChatMemberStatus
 from aiogram.filters import Command
 from aiogram.types import Message
 import yt_dlp
@@ -15,7 +15,7 @@ from aiohttp import web
 # -------------------------------
 BOT_TOKEN = "7771993655:AAEsuPrx3vn34Ql4ws_k6pPXj91X1uecaAM"  # Remplace par ton token BotFather
 ADMIN_IDS = [5116530698]  # Remplace par tes IDs admin
-FORCE_SUB_CHANNELS = ["sineur_x_bot"]  # Remplace par le(s) nom(s) de ta(tes) chaîne(s)
+FORCE_SUB_CHANNELS = []  # Pas d'abonnement forcé
 WELCOME_IMAGE_URL = "https://graph.org/file/a832e964b6e04f82c1c75-7a8ca2206c069a333a.jpg"  # URL de ton image de bienvenue
 
 # -------------------------------
@@ -37,8 +37,8 @@ async def check_subscription(user_id: int, bot) -> bool:
 
     for channel in FORCE_SUB_CHANNELS:
         try:
-            chat = await bot.get_chat(f"@{channel}")
-            member = await bot.get_chat_member(chat.id, user_id)
+            # Utiliser directement l'ID du channel au lieu de get_chat
+            member = await bot.get_chat_member(f"@{channel}", user_id)
 
             if member.status in [
                 ChatMemberStatus.LEFT,
@@ -49,6 +49,7 @@ async def check_subscription(user_id: int, bot) -> bool:
 
         except Exception as e:
             print(f"Erreur lors de la vérification pour @{channel} :", e)
+            # Considérer que l'utilisateur n'est pas abonné en cas d'erreur
             not_subscribed.append(channel)
 
     if not_subscribed:
@@ -73,7 +74,7 @@ def download_video(url: str) -> str:
     """
     Télécharge une vidéo YouTube et renvoie le chemin du fichier téléchargé.
     """
- 
+
     # Extraction de l'ID de la vidéo à partir de différents formats d'URL
     video_id = None
     if "youtu.be/" in url:
@@ -92,15 +93,7 @@ def download_video(url: str) -> str:
     print(f"URL normalisée: {clean_url}")
 
     output_filename = f"{uuid.uuid4()}.mp4"
-   #g
-    @dp.message(Command("start"))
-async def cmd_start(message: types.Message, bot: Bot):
-    user_id = message.from_user.id
 
-    if not await check_subscription(user_id, bot):  # ✅ Appel corrigé
-        return
-
-    await message.answer("Bienvenue ! Envoie-moi un lien YouTube.")
     # Configuration de base pour yt-dlp
     ydl_opts = {
         # Format progressif pour éviter la nécessité de fusion audio/vidéo
@@ -202,23 +195,21 @@ def is_admin(user_id: int) -> bool:
 # -------------------------------
 # Handlers du bot
 # -------------------------------
-@dp.message(lambda message: message.text and message.text.startswith("/start"))
-async def cmd_start(message: types.Message):
+@dp.message(Command("start"))
+async def cmd_start(message: types.Message, bot: Bot):
     # Ajouter l'utilisateur à la liste des abonnés s'il n'est pas banni
     user_id = message.from_user.id
     if user_id not in banned_users:
         subscribers.add(user_id)
 
-    # Vérifie l'abonnement forcé
-    if not await check_subscription(user_id):
-        await message.reply("Pour utiliser le bot, vous devez être abonné à notre chaîne.")
-        return
     # Création du clavier inline
     keyboard = types.InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                types.InlineKeyboardButton(text="Télécharger une vidéo", callback_data="download_video"),
-                types.InlineKeyboardButton(text="Panneau Admin", callback_data="admin_panel")
+                types.InlineKeyboardButton(text="Télécharger une vidéo", callback_data="download_video")
+            ],
+            [
+                types.InlineKeyboardButton(text="📢 Rejoindre notre canal", url="https://t.me/sineur_x_bot")
             ]
         ]
     )
@@ -248,21 +239,27 @@ async def process_admin_panel(callback_query: types.CallbackQuery):
 
     keyboard = types.InlineKeyboardMarkup(
         inline_keyboard=[
-            [types.InlineKeyboardButton(text="Envoyer une annonce", callback_data="admin_announce")],
-            [types.InlineKeyboardButton(text="Gérer les admins", callback_data="admin_manage_admins")],
-            [types.InlineKeyboardButton(text="Bannir utilisateur", callback_data="admin_ban_user")],
-            [types.InlineKeyboardButton(text="Débannir utilisateur", callback_data="admin_unban_user")],
-            [types.InlineKeyboardButton(text="Voir statistiques", callback_data="admin_stats")],
-            [types.InlineKeyboardButton(text="Gérer formats", callback_data="admin_manage_formats")],
-            [types.InlineKeyboardButton(text="Gérer liens", callback_data="admin_manage_links")],
-            [types.InlineKeyboardButton(text="Voir stockage", callback_data="admin_storage")],
-            [types.InlineKeyboardButton(text="Vider stockage", callback_data="admin_clear_storage")],
-            [types.InlineKeyboardButton(text="Modifier message démarrage", callback_data="admin_edit_start")],
-            [types.InlineKeyboardButton(text="Gérer abonnement forcé", callback_data="admin_manage_sub")],
-            [types.InlineKeyboardButton(text="Gérer images Telegraph", callback_data="admin_manage_telegraph")]
+            [
+                types.InlineKeyboardButton(text="📢 Broadcast", callback_data="admin_broadcast"),
+                types.InlineKeyboardButton(text="👮‍♂️ Add Admin", callback_data="admin_addadmin")
+            ],
+            [
+                types.InlineKeyboardButton(text="🚫 Ban Admin", callback_data="admin_banadmin"),
+                types.InlineKeyboardButton(text="📊 Stats", callback_data="admin_stats")
+            ],
+            [
+                types.InlineKeyboardButton(text="🧹 Vide Cache", callback_data="admin_videcache"),
+                types.InlineKeyboardButton(text="📁 Voir Stockage", callback_data="admin_storage")
+            ]
         ]
     )
-    await bot.send_message(callback_query.from_user.id, "Panneau Admin :", reply_markup=keyboard)
+    
+    await bot.send_message(
+        callback_query.from_user.id, 
+        "🛠 **Panneau Admin:**\n\nChoisissez une action :", 
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
     await callback_query.answer()
 
 @dp.message(lambda message: message.text and (message.text.startswith("http") or "youtu" in message.text))
@@ -305,23 +302,20 @@ async def cmd_admin(message: types.Message):
         await message.reply("Vous n'êtes pas autorisé à utiliser cette commande.")
         return
 
-    keyboard = types.InlineKeyboardMarkup(
-        inline_keyboard=[
-            [types.InlineKeyboardButton(text="Envoyer une annonce", callback_data="admin_announce")],
-            [types.InlineKeyboardButton(text="Gérer les admins", callback_data="admin_manage_admins")],
-            [types.InlineKeyboardButton(text="Bannir utilisateur", callback_data="admin_ban_user")],
-            [types.InlineKeyboardButton(text="Débannir utilisateur", callback_data="admin_unban_user")],
-            [types.InlineKeyboardButton(text="Voir statistiques", callback_data="admin_stats")],
-            [types.InlineKeyboardButton(text="Gérer formats", callback_data="admin_manage_formats")],
-            [types.InlineKeyboardButton(text="Gérer liens", callback_data="admin_manage_links")],
-            [types.InlineKeyboardButton(text="Voir stockage", callback_data="admin_storage")],
-            [types.InlineKeyboardButton(text="Vider stockage", callback_data="admin_clear_storage")],
-            [types.InlineKeyboardButton(text="Modifier message démarrage", callback_data="admin_edit_start")],
-            [types.InlineKeyboardButton(text="Gérer abonnement forcé", callback_data="admin_manage_sub")],
-            [types.InlineKeyboardButton(text="Gérer images Telegraph", callback_data="admin_manage_telegraph")]
-        ]
-    )
-    await message.answer("Panneau Admin :", reply_markup=keyboard)
+    admin_help = """
+🛠 **Panneau Admin - Commandes disponibles:**
+
+📢 `/broadcast [message]` - Diffuser un message à tous les utilisateurs
+👮‍♂️ `/addadmin [user_id]` - Ajouter un admin
+🚫 `/ban [user_id]` - Bannir un utilisateur
+📊 `/stats` - Voir les statistiques du bot
+🧹 `/videcache` - Vider le cache vidéo
+📁 `/storage` - Voir le stockage
+
+**Utilisation :** Tapez directement la commande avec les paramètres requis.
+"""
+    
+    await message.answer(admin_help, parse_mode="Markdown")
 
 # Classes pour les états de l'admin
 from aiogram.fsm.context import FSMContext
@@ -378,91 +372,60 @@ async def process_admin_callbacks(callback_query: types.CallbackQuery, state: FS
 
     data = callback_query.data
 
-    if data == "admin_announce":
+    if data == "admin_broadcast":
         await state.set_state(Announcement.waiting_for_text)
-        await bot.send_message(callback_query.from_user.id, "Envoyez le texte de l'annonce à diffuser.")
+        await bot.send_message(callback_query.from_user.id, "Envoyez le texte à diffuser à tous les utilisateurs.")
 
-    elif data == "admin_manage_admins":
-        # Afficher la liste des admins actuels
-        admin_list = "\n".join([f"• {admin_id}" for admin_id in admin_ids])
+    elif data == "admin_addadmin":
+        await state.set_state(ManageAdmins.waiting_for_admin_id)
+        await state.update_data(action="add")
+        await bot.send_message(callback_query.from_user.id, "Envoyez l'ID de l'utilisateur à ajouter comme admin.")
 
-        # Créer le clavier pour ajouter/supprimer des admins
-        keyboard = types.InlineKeyboardMarkup(row_width=2)
-        keyboard.add(
-            types.InlineKeyboardButton(text="Ajouter un admin", callback_data="admin_add"),
-            types.InlineKeyboardButton(text="Supprimer un admin", callback_data="admin_remove"),
-            types.InlineKeyboardButton(text="Retour", callback_data="back_to_admin")
-        )
-
-        # Envoyer le message avec la liste des admins et le clavier
-        await bot.send_message(
-            callback_query.from_user.id, 
-            f"Liste des admins actuels:\n{admin_list}\n\nChoisissez une action :",
-            reply_markup=keyboard
-        )
-
-    elif data == "admin_ban_user":
+    elif data == "admin_banadmin":
         await state.set_state(BanUser.waiting_for_ban_id)
         await bot.send_message(callback_query.from_user.id, "Envoyez l'ID de l'utilisateur à bannir.")
 
-    elif data == "admin_unban_user":
-        await state.set_state(UnbanUser.waiting_for_unban_id)
-        await bot.send_message(callback_query.from_user.id, "Envoyez l'ID de l'utilisateur à débannir.")
-
     elif data == "admin_stats":
         stats = (
-            f"Nombre d'utilisateurs: {len(subscribers)}\n"
-            f"Nombre d'admins: {len(admin_ids)}\n"
-            f"Nombre de bannis: {len(banned_users)}"
+            f"📊 **Statistiques du bot:**\n\n"
+            f"👥 Nombre d'utilisateurs: {len(subscribers)}\n"
+            f"👮‍♂️ Nombre d'admins: {len(admin_ids)}\n"
+            f"🚫 Nombre de bannis: {len(banned_users)}"
         )
-        await bot.send_message(callback_query.from_user.id, stats)
+        await bot.send_message(callback_query.from_user.id, stats, parse_mode="Markdown")
 
-    elif data == "admin_manage_formats":
-        keyboard = types.InlineKeyboardMarkup(row_width=2)
-        keyboard.add(
-            types.InlineKeyboardButton(text="Ajouter un format", callback_data="format_add"),
-            types.InlineKeyboardButton(text="Supprimer un format", callback_data="format_remove"),
-            types.InlineKeyboardButton(text="Retour", callback_data="back_to_admin")
-        )
-        await bot.send_message(callback_query.from_user.id, "Gérer les formats de téléchargement :", reply_markup=keyboard)
-
-    elif data == "admin_manage_links":
-        keyboard = types.InlineKeyboardMarkup(row_width=2)
-        keyboard.add(
-            types.InlineKeyboardButton(text="Ajouter un lien", callback_data="link_add"),
-            types.InlineKeyboardButton(text="Supprimer un lien", callback_data="link_remove"),
-            types.InlineKeyboardButton(text="Liste des liens", callback_data="link_list"),
-            types.InlineKeyboardButton(text="Retour", callback_data="back_to_admin")
-        )
-        await bot.send_message(callback_query.from_user.id, "Gérer les liens importants :", reply_markup=keyboard)
-
-    elif data == "admin_storage":
-        files = os.listdir('.')
-        await bot.send_message(callback_query.from_user.id, f"Fichiers présents: {files}")
-
-    elif data == "admin_clear_storage":
+    elif data == "admin_videcache":
         count = 0
         for f in os.listdir('.'):
             if f.endswith(".mp4") or f.endswith(".m4a"):
-                os.remove(f)
-                count += 1
-        await bot.send_message(callback_query.from_user.id, f"{count} fichiers supprimés.")
+                try:
+                    os.remove(f)
+                    count += 1
+                except Exception as e:
+                    print(f"Erreur lors de la suppression de {f}: {e}")
+        await bot.send_message(callback_query.from_user.id, f"🧹 Cache vidéo vidé : {count} fichiers supprimés.")
 
-    elif data == "admin_edit_start":
-        await state.set_state(EditStartMessage.waiting_for_new_message)
-        await bot.send_message(callback_query.from_user.id, "Envoyez le nouveau message de démarrage.")
-
-    elif data == "admin_manage_sub":
-        keyboard = types.InlineKeyboardMarkup(row_width=2)
-        keyboard.add(
-            types.InlineKeyboardButton(text="Ajouter une chaîne", callback_data="sub_add"),
-            types.InlineKeyboardButton(text="Supprimer une chaîne", callback_data="sub_remove")
-        )
-        await bot.send_message(callback_query.from_user.id, "Choisissez une action :", reply_markup=keyboard)
-
-    elif data == "admin_manage_telegraph":
-        await state.set_state(TelegraphImage.waiting_for_image)
-        await bot.send_message(callback_query.from_user.id, "Envoyez l'image à uploader sur Telegraph.")
+    elif data == "admin_storage":
+        files = []
+        total_size = 0
+        
+        for f in os.listdir('.'):
+            try:
+                size = os.path.getsize(f)
+                total_size += size
+                if f.endswith(('.mp4', '.m4a')):
+                    files.append(f"📹 {f} ({size/1024/1024:.1f}MB)")
+                else:
+                    files.append(f"📄 {f} ({size/1024:.1f}KB)")
+            except:
+                files.append(f"❓ {f}")
+        
+        file_list = "\n".join(files[:20])  # Limiter à 20 fichiers
+        if len(files) > 20:
+            file_list += f"\n... et {len(files)-20} autres fichiers"
+        
+        storage_info = f"📁 **Stockage:**\n\n{file_list}\n\n**Taille totale:** {total_size/1024/1024:.1f}MB"
+        await bot.send_message(callback_query.from_user.id, storage_info, parse_mode="Markdown")
 
     await callback_query.answer()
 
@@ -696,8 +659,8 @@ async def cmd_remove_admin(message: types.Message):
     except Exception as e:
         await message.reply(f"Erreur: {e}")
 
-@dp.message(lambda message: message.text and message.text.startswith("/clean"))
-async def cmd_clean(message: types.Message):
+@dp.message(lambda message: message.text and message.text.startswith("/videcache"))
+async def cmd_videcache(message: types.Message):
     if not is_admin(message.from_user.id):
         await message.reply("Vous n'êtes pas autorisé à utiliser cette commande.")
         return
@@ -711,7 +674,34 @@ async def cmd_clean(message: types.Message):
             except Exception as e:
                 await message.reply(f"Erreur lors de la suppression de {f}: {e}")
 
-    await message.reply(f"✅ {count} fichiers supprimés.")
+    await message.reply(f"🧹 Cache vidéo vidé : {count} fichiers supprimés.")
+
+@dp.message(lambda message: message.text and message.text.startswith("/storage"))
+async def cmd_storage(message: types.Message):
+    if not is_admin(message.from_user.id):
+        await message.reply("Vous n'êtes pas autorisé à utiliser cette commande.")
+        return
+
+    files = []
+    total_size = 0
+    
+    for f in os.listdir('.'):
+        try:
+            size = os.path.getsize(f)
+            total_size += size
+            if f.endswith(('.mp4', '.m4a')):
+                files.append(f"📹 {f} ({size/1024/1024:.1f}MB)")
+            else:
+                files.append(f"📄 {f} ({size/1024:.1f}KB)")
+        except:
+            files.append(f"❓ {f}")
+    
+    file_list = "\n".join(files[:20])  # Limiter à 20 fichiers
+    if len(files) > 20:
+        file_list += f"\n... et {len(files)-20} autres fichiers"
+    
+    storage_info = f"📁 **Stockage:**\n\n{file_list}\n\n**Taille totale:** {total_size/1024/1024:.1f}MB"
+    await message.reply(storage_info, parse_mode="Markdown")
 
 @dp.message(lambda message: EditStartMessage.waiting_for_new_message and message.content_type == types.ContentType.TEXT)
 async def edit_start_message_handler(message: types.Message, state: FSMContext):
@@ -989,46 +979,14 @@ async def back_to_admin_panel(callback_query: types.CallbackQuery):
     await bot.send_message(callback_query.from_user.id, "Panneau Admin :", reply_markup=keyboard)
     await callback_query.answer()
 
-@dp.callback_query(lambda c: c.data == "cancel_admin_action")
-async def cancel_admin_action(callback_query: types.CallbackQuery, state: FSMContext):
-    await state.clear()
-    await bot.send_message(callback_query.from_user.id, "Action annulée.")
-    await back_to_admin_panel(callback_query)
+@dp.callback_query(lambda c: c.data == "check_sub")
+async def handle_check_subscription(callback_query: types.CallbackQuery):
+    """Gestionnaire pour le callback de vérification d'abonnement"""
+    user_id = callback_query.from_user.id
+    
+    if await check_subscription(user_id, bot):
+        await callback_query.answer("✅ Merci ! Vous pouvez maintenant utiliser le bot.")
 
-@dp.message(Announcement.waiting_for_text)
-async def announcement_handler(message: types.Message, state: FSMContext):
-    announcement_text = message.text
-    sent = 0
-    failed = 0
-
-    await message.reply("Envoi de l'annonce en cours...")
-
-    # Assurons-nous que subscribers existe
-    global subscribers
-    if not hasattr(globals(), 'subscribers') or subscribers is None:
-        subscribers = set()
-
-    # Si subscribers est vide, on doit quand même tenter d'envoyer aux admins
-    if not subscribers:
-        for admin_id in admin_ids:
-            try:
-                await bot.send_message(admin_id, f"📢 ANNONCE :\n\n{announcement_text}")
-                sent += 1
-            except Exception as e:
-                print(f"Erreur lors de l'envoi à l'admin {admin_id} : {e}")
-                failed += 1
-    else:
-        for user_id in list(subscribers):  # Utiliser list() au lieu de copy() pour éviter les erreurs
-            if user_id not in banned_users:  # Ne pas envoyer aux utilisateurs bannis
-                try:
-                    await bot.send_message(user_id, f"📢 ANNONCE :\n\n{announcement_text}")
-                    sent += 1
-                except Exception as e:
-                    print(f"Erreur lors de l'envoi à {user_id} : {e}")
-                    failed += 1
-
-    await message.reply(f"✅ Annonce envoyée à {sent} utilisateurs.\n❌ {failed} échecs.")
-    await state.clear()
 
 # -------------------------------
 # Handlers pour le serveur web - garde le bot en ligne
