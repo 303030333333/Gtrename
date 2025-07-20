@@ -100,16 +100,17 @@ def download_video(url: str) -> str:
     """
     output_filename = f"{uuid.uuid4()}.mp4"
     
-    # Liste de User-Agents pour rotation
+    # Liste de User-Agents plus récents et variés
     user_agents = [
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0'
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:133.0) Gecko/20100101 Firefox/133.0'
     ]
     
-    # Configuration améliorée pour yt-dlp avec rotation d'User-Agent
+    # Configuration améliorée pour yt-dlp avec contournement anti-bot
     ydl_opts = {
         'format': 'best[height<=720][filesize<45M]/best[height<=480][filesize<45M]/best[height<=360][filesize<45M]/worst[filesize<50M]/worst',
         'outtmpl': output_filename,
@@ -118,29 +119,48 @@ def download_video(url: str) -> str:
         'quiet': False,
         'no_warnings': False,
         'ignoreerrors': False,
-        'extractor_retries': 3,
-        'socket_timeout': 60,
+        'extractor_retries': 5,
+        'socket_timeout': 90,
         'http_chunk_size': 10485760,
-        'retries': 3,
+        'retries': 5,
         'extract_flat': False,
         'writethumbnail': False,
         'writeinfojson': False,
-        # Rotation d'User-Agent
+        # Headers pour simuler un navigateur réel
         'http_headers': {
             'User-Agent': user_agents[hash(url) % len(user_agents)],
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-us,en;q=0.5',
-            'Accept-Encoding': 'gzip,deflate',
-            'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
-            'Keep-Alive': '115',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9,fr;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
             'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0',
         },
-        # Options supplémentaires pour contourner les restrictions
+        # Options anti-détection renforcées
         'geo_bypass': True,
         'geo_bypass_country': 'US',
-        # Éviter la détection de bot
-        'sleep_interval': 1,
-        'max_sleep_interval': 5,
+        'sleep_interval': 2,
+        'max_sleep_interval': 10,
+        # Nouvelles options pour contourner la détection de bot
+        'extractor_args': {
+            'youtube': {
+                'skip': ['dash', 'hls'],
+                'player_client': ['android', 'web'],
+                'player_skip': ['configs'],
+            }
+        },
+        # Simulation d'un comportement humain
+        'fragment_retries': 10,
+        'skip_unavailable_fragments': True,
+        'keep_fragments': False,
+        # Options pour éviter les blocages
+        'no_color': True,
+        'call_home': False,
     }
 
     try:
@@ -166,6 +186,91 @@ def download_video(url: str) -> str:
             except:
                 pass
         return None
+
+def download_video_mobile(url: str) -> str:
+    """
+    Télécharge une vidéo YouTube avec le client mobile.
+    """
+    output_filename = f"{uuid.uuid4()}.mp4"
+    
+    mobile_opts = {
+        'format': 'best[height<=720][filesize<45M]/best[height<=480][filesize<45M]/worst[filesize<50M]',
+        'outtmpl': output_filename,
+        'merge_output_format': 'mp4',
+        'noplaylist': True,
+        'quiet': True,
+        'http_headers': {
+            'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
+            'X-Forwarded-For': '8.8.8.8',
+        },
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android'],
+                'skip': ['dash', 'hls'],
+            }
+        },
+        'geo_bypass': True,
+        'retries': 3,
+        'socket_timeout': 60,
+    }
+    
+    try:
+        with yt_dlp.YoutubeDL(mobile_opts) as ydl:
+            ydl.download([url])
+        
+        if os.path.exists(output_filename) and os.path.getsize(output_filename) > 1024:
+            return output_filename
+    except:
+        pass
+    
+    if os.path.exists(output_filename):
+        try:
+            os.remove(output_filename)
+        except:
+            pass
+    return None
+
+def download_video_tv(url: str) -> str:
+    """
+    Télécharge une vidéo YouTube avec le client TV.
+    """
+    output_filename = f"{uuid.uuid4()}.mp4"
+    
+    tv_opts = {
+        'format': 'best[height<=720][filesize<45M]/best[height<=480][filesize<45M]/worst[filesize<50M]',
+        'outtmpl': output_filename,
+        'merge_output_format': 'mp4',
+        'noplaylist': True,
+        'quiet': True,
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (SMART-TV; Linux; Tizen 2.4.0) AppleWebKit/538.1',
+        },
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['tv_embedded'],
+                'skip': ['dash'],
+            }
+        },
+        'geo_bypass': True,
+        'retries': 3,
+        'socket_timeout': 60,
+    }
+    
+    try:
+        with yt_dlp.YoutubeDL(tv_opts) as ydl:
+            ydl.download([url])
+        
+        if os.path.exists(output_filename) and os.path.getsize(output_filename) > 1024:
+            return output_filename
+    except:
+        pass
+    
+    if os.path.exists(output_filename):
+        try:
+            os.remove(output_filename)
+        except:
+            pass
+    return None
 
 def upload_image_to_telegraph(file_path: str) -> str:
     """
@@ -418,10 +523,23 @@ async def handle_video_link(message: types.Message):
                                "• https://music.youtube.com/watch?v=...")
             return
 
-        # Essayer de télécharger la vidéo
+        # Essayer de télécharger la vidéo avec plusieurs méthodes
         await msg.edit_text("📥 Récupération des informations de la vidéo...")
 
+        video_path = None
+        
+        # Méthode 1 : Configuration standard
         video_path = download_video(url)
+        
+        # Méthode 2 : Si échec, essayer avec client mobile
+        if not video_path or not os.path.exists(video_path):
+            await msg.edit_text("🔄 Tentative avec client mobile...")
+            video_path = download_video_mobile(url)
+        
+        # Méthode 3 : Si échec, essayer avec client TV
+        if not video_path or not os.path.exists(video_path):
+            await msg.edit_text("🔄 Tentative avec client TV...")
+            video_path = download_video_tv(url)
 
         if video_path and os.path.exists(video_path):
             # Logger le téléchargement réussi
