@@ -1269,7 +1269,7 @@ async def cmd_ping(message: types.Message):
 # -------------------------------
 async def main():
     # Initialize global variables
-    global subscribers, banned_users, admin_ids
+    global subscribers, banned_users, admin_ids, bot
     subscribers = set()
     banned_users = set()
     admin_ids = set(ADMIN_IDS)
@@ -1295,7 +1295,6 @@ async def main():
         print("✅ Webhook supprimé et mises à jour en attente effacées")
         
         # Recréer l'instance du bot
-        global bot
         bot = Bot(token=BOT_TOKEN)
     except Exception as e:
         print(f"Erreur lors de la suppression du webhook: {e}")
