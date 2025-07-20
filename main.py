@@ -23,7 +23,7 @@ WELCOME_IMAGE_URL = "https://graph.org/file/a832e964b6e04f82c1c75-7a8ca2206c069a
 # -------------------------------
 bot = Bot(token=BOT_TOKEN)
 storage = MemoryStorage()
-dp = Dispatcher(storage=
+dp = Dispatcher(storage=MemoryStorage())
   # Ne pas échouer silencieusement, indiquer l'erreur
 
                async def check_subscription(user_id: int, bot) -> bool:
